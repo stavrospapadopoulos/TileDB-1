@@ -69,6 +69,12 @@
  */
 void adjacent_slashes_dedup(std::string& value);
 
+/** Returns true if the input is an array read mode. */
+bool array_read_mode(int mode); 
+
+/** Returns true if the input is an array write mode. */
+bool array_write_mode(int mode); 
+
 /**
  * Checks if both inputs represent the '/' character. This is an auxiliary
  * function to adjacent_slashes_dedup().

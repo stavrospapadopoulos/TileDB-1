@@ -11,7 +11,7 @@ endif
 
 # --- Configuration flags --- #
 CPPFLAGS = -std=gnu++11 -fPIC -fvisibility=hidden \
-      -D_FILE_OFFSET_BITS=64 
+      -D_FILE_OFFSET_BITS=64  
 
 # For the Travis integration
 ifdef TRAVIS
@@ -87,6 +87,19 @@ ifeq ($(BUILD),release)
   EXAMPLES_OBJ_DIR = $(EXAMPLES_OBJ_REL_DIR)
   EXAMPLES_BIN_DIR = $(EXAMPLES_BIN_REL_DIR)
 endif
+TILEDBPY_SRC_DIR = tiledbpy/src
+TILEDBPY_OBJ_DEB_DIR = tiledbpy/obj/debug
+TILEDBPY_LIB_DEB_DIR = tiledbpy/lib/debug
+ifeq ($(BUILD),debug)
+  TILEDBPY_OBJ_DIR = $(TILEDBPY_OBJ_DEB_DIR)
+  TILEDBPY_LIB_DIR = $(TILEDBPY_LIB_DEB_DIR)
+endif
+TILEDBPY_OBJ_REL_DIR = tiledbpy/obj/release
+TILEDBPY_LIB_REL_DIR = tiledbpy/lib/release
+ifeq ($(BUILD),release)
+  TILEDBPY_OBJ_DIR = $(TILEDBPY_OBJ_REL_DIR)
+  TILEDBPY_LIB_DIR = $(TILEDBPY_LIB_REL_DIR)
+endif
 TEST_SRC_SUBDIRS = $(wildcard test/src/*)
 TEST_SRC_DIR = test/src
 TEST_OBJ_DIR = test/obj
@@ -128,6 +141,9 @@ EXAMPLES_OBJ := $(patsubst $(EXAMPLES_SRC_DIR)/%.cc,\
                              $(EXAMPLES_OBJ_DIR)/%.o, $(EXAMPLES_SRC))
 EXAMPLES_BIN := $(patsubst $(EXAMPLES_SRC_DIR)/%.cc,\
                              $(EXAMPLES_BIN_DIR)/%, $(EXAMPLES_SRC)) 
+TILEDBPY_SRC := $(wildcard $(TILEDBPY_SRC_DIR)/*.cc)
+TILEDBPY_OBJ := $(patsubst $(TILEDBPY_SRC_DIR)/%.cc,\
+                             $(TILEDBPY_OBJ_DIR)/%.o, $(TILEDBPY_SRC))
 TEST_SRC := $(wildcard $(foreach D,$(TEST_SRC_SUBDIRS),$D/*.cc))
 TEST_OBJ := $(patsubst $(TEST_SRC_DIR)/%.cc, $(TEST_OBJ_DIR)/%.o, $(TEST_SRC))
 
@@ -135,8 +151,8 @@ TEST_OBJ := $(patsubst $(TEST_SRC_DIR)/%.cc, $(TEST_OBJ_DIR)/%.o, $(TEST_SRC))
 # General Targets  #
 # **************** # 
 
-.PHONY: core examples test doc clean_core \
-        clean_test clean_doc clean_examples clean
+.PHONY: core tiledbpy examples test doc clean_core \
+        clean_test clean_doc clean_examples cleab_tiledbpy clean
 
 all: core libtiledb 
 
@@ -144,6 +160,8 @@ core: $(CORE_OBJ)
 
 libtiledb: core $(CORE_LIB_DIR)/libtiledb.$(SHLIB_EXT) \
                 $(CORE_LIB_DIR)/libtiledb.a
+
+tiledbpy: libtiledb $(TILEDBPY_LIB_DIR)/tiledbpy.$(SHLIB_EXT)
 
 examples: libtiledb $(EXAMPLES_OBJ) $(EXAMPLES_BIN)
 
@@ -154,7 +172,7 @@ test: libtiledb $(TEST_BIN_DIR)/tiledb_test
 	@$(TEST_BIN_DIR)/tiledb_test
 
 clean: clean_core clean_libtiledb \
-       clean_test clean_doc clean_examples 
+       clean_test clean_doc clean_examples clean_tiledbpy
 
 # **************** # 
 #       Core       #
@@ -251,6 +269,35 @@ clean_examples:
 	@echo 'Cleaning examples'
 	@rm -f $(EXAMPLES_OBJ_DEB_DIR)/* $(EXAMPLES_OBJ_REL_DIR)/* \
                $(EXAMPLES_BIN_DEB_DIR)/* $(EXAMPLES_BIN_REL_DIR)/*
+
+# **************** # 
+#     tiledbpy     #
+# **************** # 
+
+# --- Compilation --- #
+
+$(TILEDBPY_OBJ_DIR)/%.o: $(TILEDBPY_SRC_DIR)/%.cc
+	@mkdir -p $(TILEDBPY_OBJ_DIR)
+	@echo "Compiling $<"
+	@$(CXX) $(CPPFLAGS) -I$(CORE_INCLUDE_DIR)/c_api/ \
+		$(INCLUDE_PATHS) -c $< -o $@
+
+# --- Linking --- #
+
+$(TILEDBPY_LIB_DIR)/tiledbpy.$(SHLIB_EXT): $(TILEDBPY_OBJ) \
+					   $(CORE_LIB_DIR)/libtiledb.a
+	@mkdir -p $(TILEDBPY_LIB_DIR)
+	@echo "Creating dynamic library tiledbpy.$(SHLIB_EXT)"
+	@$(CXX) $(SHLIB_FLAGS) $(SONAME) -o $@ $^ $(LIBRARY_PATHS) \
+		$(MPILIB) $(ZLIB) \
+		$(OPENSSLLIB) $(OPENMP_FLAG)
+
+# --- Cleaning --- #
+
+clean_tiledbpy:
+	@echo 'Cleaning tiledbpy'
+	@rm -f $(TILEDBPY_OBJ_DEB_DIR)/* $(TILEDBPY_OBJ_REL_DIR)/* \
+               $(TILEDBPY_LIB_DEB_DIR)/* $(TILEDBPY_LIB_REL_DIR)/*
 
 # **************** # 
 #       Test       #

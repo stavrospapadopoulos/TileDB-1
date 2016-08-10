@@ -95,6 +95,13 @@
 /** Size of the buffer used during consolidation. */
 #define TILEDB_CONSOLIDATION_BUFFER_SIZE      10000000 // ~10 MB
 
+
+/**@{*/
+/** The array type. */
+#define TILEDB_SPARSE    0
+#define TILEDB_DENSE     1
+/**@}*/
+
 /**@{*/
 /** Special empty cell value. */
 #define TILEDB_EMPTY_INT32                     INT_MAX

@@ -87,6 +87,7 @@ ifeq ($(BUILD),release)
   EXAMPLES_OBJ_DIR = $(EXAMPLES_OBJ_REL_DIR)
   EXAMPLES_BIN_DIR = $(EXAMPLES_BIN_REL_DIR)
 endif
+TILEDBPY_INCLUDE_DIR = tiledbpy/include
 TILEDBPY_SRC_DIR = tiledbpy/src
 TILEDBPY_OBJ_DEB_DIR = tiledbpy/obj/debug
 TILEDBPY_LIB_DEB_DIR = tiledbpy/lib/debug
@@ -111,6 +112,7 @@ DOXYGEN_MAINPAGE = $(DOXYGEN_DIR)/mainpage.dox
 INCLUDE_PATHS = 
 CORE_INCLUDE_PATHS = $(addprefix -I, $(CORE_INCLUDE_SUBDIRS))
 EXAMPLES_INCLUDE_PATHS = -I$(EXAMPLES_INCLUDE_DIR)
+TILEDBPY_INCLUDE_PATHS = -I$(TILEDBPY_INCLUDE_DIR)
 TEST_INCLUDE_PATHS = $(addprefix -I, $(CORE_INCLUDE_SUBDIRS))
 LIBRARY_PATHS =
 
@@ -141,6 +143,7 @@ EXAMPLES_OBJ := $(patsubst $(EXAMPLES_SRC_DIR)/%.cc,\
                              $(EXAMPLES_OBJ_DIR)/%.o, $(EXAMPLES_SRC))
 EXAMPLES_BIN := $(patsubst $(EXAMPLES_SRC_DIR)/%.cc,\
                              $(EXAMPLES_BIN_DIR)/%, $(EXAMPLES_SRC)) 
+TILEDBPY_INCLUDE := $(wildcard $(TILEDBPY_INCLUDE_DIR)/*.h)
 TILEDBPY_SRC := $(wildcard $(TILEDBPY_SRC_DIR)/*.cc)
 TILEDBPY_OBJ := $(patsubst $(TILEDBPY_SRC_DIR)/%.cc,\
                              $(TILEDBPY_OBJ_DIR)/%.o, $(TILEDBPY_SRC))
@@ -274,13 +277,20 @@ clean_examples:
 #     tiledbpy     #
 # **************** # 
 
+-include $(TILEDBPY_OBJ:%.o=%.d)
+
 # --- Compilation --- #
 
 $(TILEDBPY_OBJ_DIR)/%.o: $(TILEDBPY_SRC_DIR)/%.cc
 	@mkdir -p $(TILEDBPY_OBJ_DIR)
 	@echo "Compiling $<"
 	@$(CXX) $(CPPFLAGS) -I$(CORE_INCLUDE_DIR)/c_api/ \
-		$(INCLUDE_PATHS) -c $< -o $@
+		$(INCLUDE_PATHS) $(TILEDBPY_INCLUDE_PATHS) -c $< -o $@
+	@$(CXX) -MM -I$(CORE_INCLUDE_DIR)/c_api/ \
+		$(INCLUDE_PATHS) $(TILEDBPY_INCLUDE_PATHS) $< > $(@:.o=.d)
+	@mv -f $(@:.o=.d) $(@:.o=.d.tmp)
+	@sed 's|.*:|$@:|' < $(@:.o=.d.tmp) > $(@:.o=.d)
+	@rm -f $(@:.o=.d.tmp)
 
 # --- Linking --- #
 

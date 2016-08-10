@@ -363,9 +363,8 @@ int tiledb_array_set_schema(
   } else {
     tiledb_array_schema->cell_val_num_ = 
         (int*) malloc((attribute_num)*sizeof(int));
-    for(int i=0; i<attribute_num; ++i) {
+    for(int i=0; i<attribute_num; ++i) 
       tiledb_array_schema->cell_val_num_[i] = cell_val_num[i];
-    }
   }
 
   // Set cell and tile order

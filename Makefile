@@ -125,6 +125,7 @@ ZLIB = -lz
 OPENSSLLIB = -lcrypto
 GTESTLIB = -lgtest -lgtest_main
 MPILIB =
+PYTHONLIB =
 
 # --- For the TileDB dynamic library --- #
 ifeq ($(OS), Darwin)
@@ -164,7 +165,7 @@ core: $(CORE_OBJ)
 libtiledb: core $(CORE_LIB_DIR)/libtiledb.$(SHLIB_EXT) \
                 $(CORE_LIB_DIR)/libtiledb.a
 
-tiledbpy: libtiledb $(TILEDBPY_LIB_DIR)/tiledbpy.$(SHLIB_EXT)
+tiledbpy: libtiledb $(TILEDBPY_OBJ) $(TILEDBPY_LIB_DIR)/tiledbpy.so
 
 examples: libtiledb $(EXAMPLES_OBJ) $(EXAMPLES_BIN)
 
@@ -294,12 +295,11 @@ $(TILEDBPY_OBJ_DIR)/%.o: $(TILEDBPY_SRC_DIR)/%.cc
 
 # --- Linking --- #
 
-$(TILEDBPY_LIB_DIR)/tiledbpy.$(SHLIB_EXT): $(TILEDBPY_OBJ) \
-					   $(CORE_LIB_DIR)/libtiledb.a
+$(TILEDBPY_LIB_DIR)/tiledbpy.so: $(TILEDBPY_OBJ) $(CORE_LIB_DIR)/libtiledb.a
 	@mkdir -p $(TILEDBPY_LIB_DIR)
-	@echo "Creating dynamic library tiledbpy.$(SHLIB_EXT)"
+	@echo "Creating dynamic library tiledbpy.so"
 	@$(CXX) $(SHLIB_FLAGS) $(SONAME) -o $@ $^ $(LIBRARY_PATHS) \
-		$(MPILIB) $(ZLIB) \
+		$(PYTHONLIB) $(MPILIB) $(ZLIB) \
 		$(OPENSSLLIB) $(OPENMP_FLAG)
 
 # --- Cleaning --- #

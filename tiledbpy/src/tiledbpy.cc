@@ -31,11 +31,19 @@
  */
 
 #include <Python.h>
+#include <iostream>
 #include <string>
 #include "c_api.h"
 #include "tiledbpy_doc.h"
 #include "tiledbpy_parse.h"
 #include "tiledbpy_build.h"
+
+
+/* ****************************** */
+/*             MACROS             */
+/* ****************************** */
+
+#define ERRMSG(x) std::string(x) + "\n --> " + std::string(tiledb_errmsg)
 
 #ifdef __cplusplus
 extern "C" {
@@ -85,8 +93,8 @@ static PyObject* tiledbpy_array_schema(
   // Load array schema
   TileDB_ArraySchema array_schema;
   if(tiledb_array_load_schema(tiledb_ctx, Array, &array_schema) != TILEDB_OK) {
-    PyErr_SetString(tiledbpy_error, "Failed to retrieve array schema");
-    // TODO: set string more properly
+    std::string errmsg = ERRMSG("Failed to retrieve array schema");
+    PyErr_SetString(tiledbpy_error, errmsg.c_str());
     return NULL;
   }
 
@@ -100,14 +108,43 @@ static PyObject* tiledbpy_array_schema(
 
   // Free schema
   if(tiledb_array_free_schema(&array_schema) != TILEDB_OK) {
-    PyErr_SetString(tiledbpy_error, "Failed to free array schema");
+    std::string errmsg = ERRMSG("Failed to free array schema");
+    PyErr_SetString(tiledbpy_error, errmsg.c_str());
     Py_DECREF(ArraySchema);
-    // TODO: proper error message
     return NULL;
   }
 
   // Success
   return ArraySchema;
+}
+
+/* Clears a TileDB object. */
+static PyObject* tiledbpy_clear(
+    PyObject* self, 
+    PyObject* args) {
+  // Function arguments
+  const char* Dir;
+
+  // Parse function arguments
+  if(!PyArg_ParseTuple(
+         args,
+         "s|;"
+          "Invalid function arguments. "
+          "Type 'help(tiledbpy.clear)' "
+          "to see the usage of 'clear'",
+         &Dir)) 
+    return NULL;
+
+  // Clear directory
+  if(tiledb_clear(tiledb_ctx, Dir) != TILEDB_OK) {
+    std::string errmsg = ERRMSG("Failed to clear TileDB object");
+    PyErr_SetString(tiledbpy_error, errmsg.c_str());
+    return NULL;
+  }
+
+  // Success - Return nothing
+  Py_INCREF(Py_None);
+  return Py_None;
 }
 
 /* Creates a TileDB array. */
@@ -172,15 +209,15 @@ static PyObject* tiledbpy_create_array(
 
   // Create array
   if(tiledb_array_create(tiledb_ctx, &array_schema) != TILEDB_OK) {
-    PyErr_SetString(tiledbpy_error, "Failed to create array");
-    // TODO: set string more properly
+    std::string errmsg = ERRMSG("Failed to create array");
+    PyErr_SetString(tiledbpy_error, errmsg.c_str());
     return NULL;
   }
 
   // Free array schema
   if(tiledb_array_free_schema(&array_schema) != TILEDB_OK) {
-    PyErr_SetString(tiledbpy_error, "Failed to free array schema");
-    // TODO: proper error message
+    std::string errmsg = ERRMSG("Failed to free array schema");
+    PyErr_SetString(tiledbpy_error, errmsg.c_str());
     return NULL;
   }
 
@@ -208,8 +245,8 @@ static PyObject* tiledbpy_create_group(
 
   // Create workspace
   if(tiledb_group_create(tiledb_ctx, Group) != TILEDB_OK) {
-    PyErr_SetString(tiledbpy_error, "Failed to create group");
-    // TODO: set string more properly
+    std::string errmsg = ERRMSG("Failed to create group");
+    PyErr_SetString(tiledbpy_error, errmsg.c_str());
     return NULL;
   }
 
@@ -237,8 +274,37 @@ static PyObject* tiledbpy_create_workspace(
 
   // Create workspace
   if(tiledb_workspace_create(tiledb_ctx, Workspace) != TILEDB_OK) {
-    PyErr_SetString(tiledbpy_error, "Failed to create workspace");
-    // TODO: set string more properly
+    std::string errmsg = ERRMSG("Failed to create workspace");
+    PyErr_SetString(tiledbpy_error, errmsg.c_str());
+    return NULL;
+  }
+
+  // Success - Return nothing
+  Py_INCREF(Py_None);
+  return Py_None;
+}
+
+/* Deletes a TileDB object. */
+static PyObject* tiledbpy_delete(
+    PyObject* self, 
+    PyObject* args) {
+  // Function arguments
+  const char* Dir;
+
+  // Parse function arguments
+  if(!PyArg_ParseTuple(
+         args,
+         "s|;"
+          "Invalid function arguments. "
+          "Type 'help(tiledbpy.delete)' "
+          "to see the usage of 'delete'",
+         &Dir)) 
+    return NULL;
+
+  // Delete directory
+  if(tiledb_delete(tiledb_ctx, Dir) != TILEDB_OK) {
+    std::string errmsg = ERRMSG("Failed to delete TileDB object");
+    PyErr_SetString(tiledbpy_error, errmsg.c_str());
     return NULL;
   }
 
@@ -253,8 +319,8 @@ static PyObject* tiledbpy_finalize(PyObject* self, PyObject* args) {
   if(tiledb_ctx != NULL &&
      tiledb_ctx_finalize(tiledb_ctx) != TILEDB_OK) {
     // Raise exception if finalization fails.
-    PyErr_SetString(tiledbpy_error, "Cannot finalize TileDB context");
-    // TODO
+    std::string errmsg = ERRMSG("Cannot finalize TileDB context");
+    PyErr_SetString(tiledbpy_error, errmsg.c_str());
     return NULL;
   }
 
@@ -262,6 +328,139 @@ static PyObject* tiledbpy_finalize(PyObject* self, PyObject* args) {
   tiledb_ctx = NULL;
 
   // Return nothing
+  Py_INCREF(Py_None);
+  return Py_None;
+}
+
+/*
+ * Returns the list of the TileDB objects in a directory along with their types.
+ */
+static PyObject* tiledbpy_ls(
+    PyObject* self, 
+    PyObject* args) {
+  // Function arguments
+  const char* Dir;
+
+  // Parse function arguments
+  if(!PyArg_ParseTuple(
+         args,
+         "s|;"
+          "Invalid function arguments. "
+          "Type 'help(tiledbpy.ls)' to see the usage of 'ls'",
+         &Dir)) 
+    return NULL;
+
+  // Count the number of TileDB objects 
+  int dir_num;
+  if(tiledb_ls_c(tiledb_ctx, Dir, &dir_num) != TILEDB_OK) {
+    std::string errmsg = ERRMSG("Failed to list the TileDB objects");
+    PyErr_SetString(tiledbpy_error, errmsg.c_str());
+    return NULL;
+  }
+
+  // Retrieve the TileDB objects
+  PyObject* LSList = NULL;
+  if(dir_num > 0) {
+    char** dirs = new char*[dir_num];
+    int* dir_types = new int[dir_num];
+    for(int i=0; i<dir_num; ++i)
+      dirs[i] = new char[TILEDB_NAME_MAX_LEN]; 
+    if(tiledb_ls(tiledb_ctx, Dir, dirs, dir_types, &dir_num) != TILEDB_OK) {
+      std::string errmsg = ERRMSG("Failed to list the TileDB objects");
+      PyErr_SetString(tiledbpy_error, errmsg.c_str());
+      return NULL;
+    }
+
+    // Build the TileDB object list 
+    tiledbpy_build_ls((const char**) dirs, dir_types, dir_num, LSList);
+
+    // Clean up
+    for(int i=0; i<dir_num; ++i)
+      delete [] dirs[i];
+    delete [] dirs;
+    delete [] dir_types;
+  }
+
+
+  // Return the list if not NULL, otherwise empty list
+  if(LSList != NULL) 
+    return LSList;
+  else 
+    return PyList_New(0);
+}
+
+/* Returns the list of the TileDB objects workspaces. */
+static PyObject* tiledbpy_ls_workspaces(
+    PyObject* self, 
+    PyObject* args) {
+  // Count the number of TileDB workspaces 
+  int workspace_num;
+  if(tiledb_ls_workspaces_c(tiledb_ctx, &workspace_num) != TILEDB_OK) {
+    std::string errmsg = ERRMSG("Failed to list the TileDB workspaces");
+    PyErr_SetString(tiledbpy_error, errmsg.c_str());
+    return NULL;
+  }
+
+  // Retrieve the TileDB workspaces
+  PyObject* LSList = NULL;
+  if(workspace_num > 0) {
+    char** workspaces = new char*[workspace_num];
+    for(int i=0; i<workspace_num; ++i)
+      workspaces[i] = new char[TILEDB_NAME_MAX_LEN]; 
+    if(tiledb_ls_workspaces(tiledb_ctx, workspaces, &workspace_num) != 
+       TILEDB_OK) {
+      std::string errmsg = ERRMSG("Failed to list the TileDB workspaces");
+      PyErr_SetString(tiledbpy_error, errmsg.c_str());
+      return NULL;
+    }
+
+    // Build the TileDB workspace list 
+    tiledbpy_build_ls_workspaces(
+        (const char**) workspaces, 
+        workspace_num, 
+        LSList);
+
+    // Clean up
+    for(int i=0; i<workspace_num; ++i)
+      delete [] workspaces[i];
+    delete [] workspaces;
+  }
+
+
+  // Return the list if not NULL, otherwise empty list
+  if(LSList != NULL) 
+    return LSList;
+  else 
+    return PyList_New(0);
+}
+
+/* Moves a TileDB object. */
+static PyObject* tiledbpy_move(
+    PyObject* self, 
+    PyObject* args) {
+  // Function arguments
+  const char* OldDir;
+  const char* NewDir;
+
+  // Parse function arguments
+  if(!PyArg_ParseTuple(
+         args,
+         "ss|;"
+          "Invalid function arguments. "
+          "Type 'help(tiledbpy.move)' "
+          "to see the usage of 'move'",
+         &OldDir, 
+         &NewDir)) 
+    return NULL;
+
+  // Delete directory
+  if(tiledb_move(tiledb_ctx, OldDir, NewDir) != TILEDB_OK) {
+    std::string errmsg = ERRMSG("Failed to move TileDB object");
+    PyErr_SetString(tiledbpy_error, errmsg.c_str());
+    return NULL;
+  }
+
+  // Success - Return nothing
   Py_INCREF(Py_None);
   return Py_None;
 }
@@ -284,6 +483,7 @@ static struct PyMethodDef tiledbpy_methods[] = {
     (PyCFunction) tiledbpy_array_schema, 
     METH_VARARGS,
     TILEDBPY_DOC_ARRAY_SCHEMA },
+  { "clear", tiledbpy_clear, METH_VARARGS, TILEDBPY_DOC_CLEAR },
   { "create_array", 
     (PyCFunction) tiledbpy_create_array, 
     METH_VARARGS|METH_KEYWORDS,
@@ -296,7 +496,14 @@ static struct PyMethodDef tiledbpy_methods[] = {
     (PyCFunction) tiledbpy_create_workspace, 
     METH_VARARGS,
     TILEDBPY_DOC_CREATE_WORKSPACE },
+  { "delete", tiledbpy_delete, METH_VARARGS, TILEDBPY_DOC_DELETE },
   { "finalize", tiledbpy_finalize, METH_NOARGS, TILEDBPY_DOC_FINALIZE },
+  { "ls", tiledbpy_ls, METH_VARARGS, TILEDBPY_DOC_LS },
+  { "ls_workspaces", 
+     tiledbpy_ls_workspaces, 
+     METH_NOARGS, 
+     TILEDBPY_DOC_LS_WORKSPACES },
+  { "move", tiledbpy_move, METH_VARARGS, TILEDBPY_DOC_MOVE },
   { "version", tiledbpy_version, METH_NOARGS, TILEDBPY_DOC_VERSION },
   { NULL, NULL, 0, NULL }
 };
@@ -318,7 +525,8 @@ PyObject* PyInit_tiledbpy() {
   if(tiledb_ctx == NULL &&
      tiledb_ctx_init(&tiledb_ctx, NULL) != TILEDB_OK) {
     // Raise exception if initialization fails.
-    PyErr_SetString(tiledbpy_error, "Cannot initialize TileDB context");
+    std::string errmsg = ERRMSG("Cannot finalize TileDB context");
+    PyErr_SetString(tiledbpy_error, errmsg.c_str());
     return NULL;
   }
 
@@ -345,6 +553,10 @@ PyObject* PyInit_tiledbpy() {
   PyModule_AddIntConstant(m, "TILEDBPY_DENSE", TILEDB_DENSE);
   PyModule_AddIntConstant(m, "TILEDBPY_COL_MAJOR", TILEDB_COL_MAJOR);
   PyModule_AddIntConstant(m, "TILEDBPY_ROW_MAJOR", TILEDB_ROW_MAJOR);
+  PyModule_AddIntConstant(m, "TILEDBPY_WORKSPACE", TILEDB_WORKSPACE);
+  PyModule_AddIntConstant(m, "TILEDBPY_GROUP", TILEDB_GROUP);
+  PyModule_AddIntConstant(m, "TILEDBPY_ARRAY", TILEDB_ARRAY);
+  PyModule_AddIntConstant(m, "TILEDBPY_METADATA", TILEDB_METADATA);
 
   // Return the module
   return m;

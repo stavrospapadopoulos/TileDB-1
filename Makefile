@@ -42,7 +42,7 @@ endif
 # --- Verbose mode handler --- #
 VERBOSE =
 ifeq ($(VERBOSE),1)
-  CPPFLAGS += -DNVERBOSE
+  CPPFLAGS += -DVERBOSE
 endif
 
 # --- Compilers --- #

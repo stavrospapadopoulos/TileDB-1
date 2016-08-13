@@ -65,6 +65,24 @@ void tiledbpy_build_dimensions(
     const TileDB_ArraySchema& array_schema,
     PyObject*& Dimensions);
 
+/**
+ * Builds a Python list with tuples of the form (TileDB object, type),
+ * which resulted from the invocation of tiledb_ls.
+ */
+void tiledbpy_build_ls(
+    const char** dirs,
+    const int* dir_types,
+    int dir_num,
+    PyObject*& LSList);
+
+/**
+ * Builds a Python list with the TileDB workspace strings returned 
+ * from the invocation of tiledb_ls_workspaces.
+ */
+void tiledbpy_build_ls_workspaces(
+    const char** workspaces,
+    int workspace_num,
+    PyObject*& LSList);
 
 
 #endif

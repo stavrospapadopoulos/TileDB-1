@@ -1176,7 +1176,12 @@ int StorageManager::ls_c(const char* parent_dir, int& dir_num) const {
   
   if(dir == NULL) {
     dir_num = 0;
-    return TILEDB_SM_OK;
+    std::string errmsg = 
+        std::string("Cannot open parent directory; ") + 
+        strerror(errno);
+    PRINT_ERROR(errmsg);
+    tiledb_sm_errmsg = TILEDB_SM_ERRMSG + errmsg;
+    return TILEDB_SM_ERR;
   }
 
   while((next_file = readdir(dir))) {
@@ -1310,9 +1315,10 @@ int StorageManager::array_clear(
     if(is_metadata(filename)) {         // Metadata
       metadata_delete(filename);
     } else if(is_fragment(filename)){   // Fragment
-      if(delete_dir(filename) != TILEDB_UT_OK)
+      if(delete_dir(filename) != TILEDB_UT_OK) {
         tiledb_sm_errmsg = tiledb_ut_errmsg;
         return TILEDB_SM_ERR;
+      }
     } else {                            // Non TileDB related
       std::string errmsg =
           std::string("Cannot delete non TileDB related element '") +

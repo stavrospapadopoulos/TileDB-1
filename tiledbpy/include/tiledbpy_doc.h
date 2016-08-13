@@ -145,6 +145,25 @@
     "      If the input argument does not respect the expected type."          \
 
 
+#define TILEDBPY_DOC_CLEAR                                                     \
+    "Clears a TileDB directory. The corresponding TileDB object (workspace,\n" \
+    "group, array, or metadata) will still exist after the execution of the\n" \
+    "function, but it will be empty (i.e., as if it was just created).\n"      \
+    "\n"                                                                       \
+    "Args:\n"                                                                  \
+    "   dir (string, madatory):\n"                                             \
+    "      The TileDB directory to be cleared.\n"                              \
+    "\n"                                                                       \
+    "Returns:\n"                                                               \
+    "    PyNone\n"                                                             \
+    "\n"                                                                       \
+    "Raises:\n"                                                                \
+    "   tiledbpy.error:\n"                                                     \
+    "      If the TileDB directory does not exist or cannot be cleared.\n"     \
+    "   TypeError:\n"                                                          \
+    "      If the input argument does not respect the expected type."         
+
+
 #define TILEDBPY_DOC_CREATE_ARRAY                                              \
     "Creates a new TileDB array.\n"                                            \
     "\n"                                                                       \
@@ -342,6 +361,25 @@
     "      If the input argument does not respect the expected type."         
 
 
+#define TILEDBPY_DOC_DELETE                                                    \
+    "Deletes a TileDB directory (workspace, group, array, or metadata)\n"      \
+    "completely.\n"                                                            \
+    "\n"                                                                       \
+    "Args:\n"                                                                  \
+    "   dir (string, madatory):\n"                                             \
+    "      The TileDB directory to be deleted.\n"                              \
+    "\n"                                                                       \
+    "Returns:\n"                                                               \
+    "    PyNone\n"                                                             \
+    "\n"                                                                       \
+    "Raises:\n"                                                                \
+    "   tiledbpy.error:\n"                                                     \
+    "      If the TileDB directory does not exist or cannot be deleted.\n"     \
+    "   TypeError:\n"                                                          \
+    "      If the input argument does not respect the expected type."         
+
+
+
 #define TILEDBPY_DOC_FINALIZE                                                  \
     "Finalizes the TileDB-Py module.\n"                                        \
     "\n"                                                                       \
@@ -354,6 +392,57 @@
     "Raises:\n"                                                                \
     "   tiledbpy.error:\n"                                                     \
     "      If the TileDB context cannot be finalized."                        
+
+#define TILEDBPY_DOC_LS                                                        \
+    "Lists the TileDB objects in a directory.\n"                               \
+    "\n"                                                                       \
+    "Args:\n"                                                                  \
+    "   dir (string, mandatory): \n"                                           \
+    "      The directory whose TileDB objects will be listed.\n"               \
+    "\n"                                                                       \
+    "Returns:\n"                                                               \
+    "    A list of tuples (TileDB object path (string), type (int)), where\n"  \
+    "    the type can be one of TILEDBPY_WORKSPACE, TILEDBPY_GROUP,\n"         \
+    "    TILEDBPY_ARRAY, and TILEDBPY_METADATA.\n"                             \
+    "\n"                                                                       \
+    "Raises:\n"                                                                \
+    "   tiledbpy.error:\n"                                                     \
+    "      If the input directory does not exist.\n"                           \
+    "   TypeError:\n"                                                          \
+    "      If the input argument does not respect the expected type."         
+
+#define TILEDBPY_DOC_LS_WORKSPACES                                             \
+    "Lists the TileDB workspaces.\n"                                           \
+    "\n"                                                                       \
+    "Args:\n"                                                                  \
+    "   void \n"                                                               \
+    "\n"                                                                       \
+    "Returns:\n"                                                               \
+    "    A list of tuples with the TileDB workspace paths as strings.\n"       \
+    "\n"                                                                       \
+    "Raises:\n"                                                                \
+    "   tiledbpy.error:\n"                                                     \
+    "      If there is something wrong with the TileDB master catalog.\n"      
+
+#define TILEDBPY_DOC_MOVE                                                      \
+    "Moves a TileDB directory (workspace, group, array or metadata).\n"        \
+    "\n"                                                                       \
+    "Args:\n"                                                                  \
+    "   old_dir (string, madatory):\n"                                         \
+    "      The old TileDB directory to be moved.\n"                            \
+    "\n"                                                                       \
+    "   new_dir (string, madatory):\n"                                         \
+    "      The new TileDB directory.\n"                                        \
+    "\n"                                                                       \
+    "Returns:\n"                                                               \
+    "    PyNone\n"                                                             \
+    "\n"                                                                       \
+    "Raises:\n"                                                                \
+    "   tiledbpy.error:\n"                                                     \
+    "      If the old TileDB directory does not exist or cannot be moved.\n"   \
+    "   TypeError:\n"                                                          \
+    "      If the input arguments do not respect the expected types."         
+
 
 #define TILEDBPY_DOC_VERSION                                                   \
     "Returns the version of the TileDB library used by the TileDB-Py module.\n"\

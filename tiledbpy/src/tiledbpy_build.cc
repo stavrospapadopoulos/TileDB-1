@@ -245,3 +245,23 @@ void tiledbpy_build_dimensions(
       PyLong_FromLong(array_schema.compression_[attribute_num]));
   PyList_SetItem(Dimensions, dim_num, DimensionInfo);
 }
+
+void tiledbpy_build_ls(
+    const char** dirs,
+    const int* dir_types,
+    int dir_num,
+    PyObject*& LSList) {
+  // Build a list with tuples of the form (TileDB object, object type)
+  LSList = PyList_New(dir_num);
+  for(int i=0; i<dir_num; ++i) 
+    PyList_SetItem(LSList, i, Py_BuildValue("(si)", dirs[i], dir_types[i]));
+}
+
+void tiledbpy_build_ls_workspaces(
+    const char** workspaces,
+    int workspace_num,
+    PyObject*& LSList) {
+  LSList = PyList_New(workspace_num);
+  for(int i=0; i<workspace_num; ++i) 
+    PyList_SetItem(LSList, i, Py_BuildValue("s", workspaces[i]));
+}

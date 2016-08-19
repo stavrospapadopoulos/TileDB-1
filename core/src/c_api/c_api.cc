@@ -34,6 +34,7 @@
 #include "c_api.h"
 #include "config.h"
 #include "array_schema_c.h"
+#include "expression.h"
 #include "storage_manager.h"
 #include <cassert>
 #include <cstring>
@@ -1569,6 +1570,275 @@ int tiledb_array_aio_write(
     strcpy(tiledb_errmsg, tiledb_ar_errmsg.c_str());
     return TILEDB_ERR;
   }
+
+  // Success
+  return TILEDB_OK;
+}
+
+
+
+
+/* ****************************** */
+/*           EXPRESSION           */
+/* ****************************** */
+
+typedef struct TileDB_Expression {
+  Expression* expr_;
+} TileDB_Expression;
+
+int tiledb_expression_binary_op(
+    const TileDB_Expression* a,
+    const TileDB_Expression* b,
+    TileDB_Expression** c,
+    int op) {
+  // Sanity checks
+  if(a == NULL) {
+    std::string errmsg = 
+        "Cannot evaluate operator; Input expression is null";
+    PRINT_ERROR(errmsg);
+    strcpy(tiledb_errmsg, (TILEDB_ERRMSG + errmsg).c_str());
+    return TILEDB_ERR;
+  }
+  if(b == NULL) {
+    std::string errmsg = 
+        "Cannot evaluate operator; Input expression is null";
+    PRINT_ERROR(errmsg);
+    strcpy(tiledb_errmsg, (TILEDB_ERRMSG + errmsg).c_str());
+    return TILEDB_ERR;
+  }
+
+  // Create a new expression
+  *c = (TileDB_Expression*)malloc(sizeof(TileDB_Expression));
+  (*c)->expr_ = new Expression();
+
+  // Connect the expressions
+  if((*c)->expr_->binary_op(*(a->expr_), *(b->expr_), op) != TILEDB_EXPR_OK) {
+    strcpy(tiledb_errmsg, tiledb_expr_errmsg.c_str());
+    return TILEDB_ERR;
+  }
+
+  // Success
+  return TILEDB_OK;
+}
+
+int tiledb_expression_clear(TileDB_Expression* expr) {
+  // Sanity check
+  if(expr == NULL) {
+    std::string errmsg = "Cannot free expression; Expression is null";
+    PRINT_ERROR(errmsg);
+    strcpy(tiledb_errmsg, (TILEDB_ERRMSG + errmsg).c_str());
+    return TILEDB_ERR;
+  }
+
+  // Clean up
+  expr->expr_->clear();
+  delete expr->expr_;
+  expr->expr_ = NULL;
+
+  // Success
+  return TILEDB_OK;
+}
+
+int tiledb_expression_eval(
+    TileDB_Expression* expr,
+    const void** values,
+    const int* types) {
+  // Sanity check
+  if(expr == NULL) {
+    std::string errmsg = 
+        "Cannot evaluate expression; Expression is null";
+    PRINT_ERROR(errmsg);
+    strcpy(tiledb_errmsg, (TILEDB_ERRMSG + errmsg).c_str());
+    return TILEDB_ERR;
+  }
+
+  // Evaluate the expression
+  if(expr->expr_->eval(values, types) != TILEDB_EXPR_OK) {
+    strcpy(tiledb_errmsg, tiledb_expr_errmsg.c_str());
+    return TILEDB_ERR;
+  }
+
+  // Success
+  return TILEDB_OK;
+}
+
+int tiledb_expression_init(
+    TileDB_Expression** expr,
+    int type,
+    const void* data) {
+  // Create expression object
+  *expr = (TileDB_Expression*)malloc(sizeof(TileDB_Expression));
+  (*expr)->expr_ = new Expression();
+
+  // Initialize expression
+  if((*expr)->expr_->init(type, data) != TILEDB_EXPR_OK) {
+    strcpy(tiledb_errmsg, tiledb_expr_errmsg.c_str());
+    return TILEDB_ERR;
+  }
+
+  // Success
+  return TILEDB_OK;
+}
+
+int tiledb_expression_purge(
+    TileDB_Expression* expr,
+    const char** vars,
+    const void** values,
+    const int* types,
+    int num) {
+  // Sanity check
+  if(expr == NULL) {
+    std::string errmsg = "Cannot purge expression; Expression is null";
+    PRINT_ERROR(errmsg);
+    strcpy(tiledb_errmsg, (TILEDB_ERRMSG + errmsg).c_str());
+    return TILEDB_ERR;
+  }
+
+  // Purge the expression
+  if(expr->expr_->purge(vars, values, types, num) != TILEDB_EXPR_OK) {
+    strcpy(tiledb_errmsg, tiledb_expr_errmsg.c_str());
+    return TILEDB_ERR;
+  }
+
+  // Success
+  return TILEDB_OK;
+
+
+  // Success
+  return TILEDB_OK;
+}
+
+int tiledb_expression_todot(
+    const TileDB_Expression* expr,
+    const char* filename) {
+  // Sanity check
+  if(expr == NULL) {
+    std::string errmsg = "Cannot export expression to dot; Expression is null";
+    PRINT_ERROR(errmsg);
+    strcpy(tiledb_errmsg, (TILEDB_ERRMSG + errmsg).c_str());
+    return TILEDB_ERR;
+  }
+
+  // Purge the expression
+  if(expr->expr_->todot(filename) != TILEDB_EXPR_OK) {
+    strcpy(tiledb_errmsg, tiledb_expr_errmsg.c_str());
+    return TILEDB_ERR;
+  }
+
+  // Success
+  return TILEDB_OK;
+}
+
+int tiledb_expression_type(const TileDB_Expression* expr, int* type) {
+  // Sanity check
+  if(expr == NULL) {
+    std::string errmsg = 
+        "Cannot get expression type; Expression is null";
+    PRINT_ERROR(errmsg);
+    strcpy(tiledb_errmsg, (TILEDB_ERRMSG + errmsg).c_str());
+    return TILEDB_ERR;
+  }
+
+  // Get value
+  if(expr->expr_->type(type) != TILEDB_EXPR_OK) {
+    strcpy(tiledb_errmsg, tiledb_expr_errmsg.c_str());
+    return TILEDB_ERR;
+  }
+
+  // Success
+  return TILEDB_OK;
+}
+
+int tiledb_expression_value(const TileDB_Expression* expr, void* value) {
+  // Sanity check
+  if(expr == NULL) {
+    std::string errmsg = 
+        "Cannot get expression value; Expression is null";
+    PRINT_ERROR(errmsg);
+    strcpy(tiledb_errmsg, (TILEDB_ERRMSG + errmsg).c_str());
+    return TILEDB_ERR;
+  }
+
+  // Get value
+  if(expr->expr_->value(value) != TILEDB_EXPR_OK) {
+    strcpy(tiledb_errmsg, tiledb_expr_errmsg.c_str());
+    return TILEDB_ERR;
+  }
+
+  // Success
+  return TILEDB_OK;
+}
+
+int tiledb_expression_var_ids(
+    const TileDB_Expression* expr,
+    const char** var_names,
+    int var_num,
+    int* var_ids) {
+  // Sanity check
+  if(expr == NULL) {
+    std::string errmsg = 
+        "Cannot get expression variable ids; Expression is null";
+    PRINT_ERROR(errmsg);
+    strcpy(tiledb_errmsg, (TILEDB_ERRMSG + errmsg).c_str());
+    return TILEDB_ERR;
+  }
+
+  // Get variable ids
+  std::vector<int> ids = expr->expr_->get_var_ids(var_names, var_num);
+  memcpy(var_ids, &ids[0], var_num*sizeof(int));
+
+  // Success
+  return TILEDB_OK;
+}
+
+int tiledb_expression_var_names(
+    const TileDB_Expression* expr,
+    char** var_names,
+    int* var_num) {
+  // Sanity check
+  if(expr == NULL) {
+    std::string errmsg = 
+        "Cannot get expression variable names; Expression is null";
+    PRINT_ERROR(errmsg);
+    strcpy(tiledb_errmsg, (TILEDB_ERRMSG + errmsg).c_str());
+    return TILEDB_ERR;
+  }
+
+  // Get number of variables
+  int expr_var_num = expr->expr_->var_num();
+
+  // Sanity check on var_num
+  if(*var_num < expr_var_num) {
+    std::string errmsg = 
+        "Cannot get expression variable names; "
+        "Not enough memory allocated for input 'var_names'";
+    PRINT_ERROR(errmsg);
+    strcpy(tiledb_errmsg, (TILEDB_ERRMSG + errmsg).c_str());
+    return TILEDB_ERR;
+  }
+
+  // Get variable names
+  std::vector<std::string> names = expr->expr_->get_var_names();
+  *var_num = (int) names.size();
+  for(int i=0; i < *var_num; ++i)
+    strcpy(var_names[i], names[i].c_str());
+
+  // Success
+  return TILEDB_OK;
+}
+
+int tiledb_expression_var_num(const TileDB_Expression* expr, int* var_num) {
+  // Sanity check
+  if(expr == NULL) {
+    std::string errmsg = 
+        "Cannot get number of expression variables; Expression is null";
+    PRINT_ERROR(errmsg);
+    strcpy(tiledb_errmsg, (TILEDB_ERRMSG + errmsg).c_str());
+    return TILEDB_ERR;
+  }
+
+  // Copy number of variables
+  *var_num = expr->expr_->var_num();
 
   // Success
   return TILEDB_OK;

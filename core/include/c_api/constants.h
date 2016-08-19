@@ -170,4 +170,19 @@
 #define TILEDB_SORTED_BUFFER_VAR_SIZE         10000000  // ~10MB
 /**@}*/
 
+/**@{*/
+/** Expression constants. */
+#define TILEDB_EXPR_NULL               -1
+#define TILEDB_EXPR_INT32               0
+#define TILEDB_EXPR_INT64               1
+#define TILEDB_EXPR_FLOAT32             2
+#define TILEDB_EXPR_FLOAT64             3
+#define TILEDB_EXPR_VAR                 4
+#define TILEDB_EXPR_OP_ADD              5
+#define TILEDB_EXPR_OP_SUB              6
+#define TILEDB_EXPR_OP_MUL              7
+#define TILEDB_EXPR_OP_DIV              8
+#define TILEDB_EXPR_OP_MOD              9
+/**@}*/
+
 #endif

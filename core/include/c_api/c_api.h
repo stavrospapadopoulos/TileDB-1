@@ -1215,6 +1215,199 @@ TILEDB_EXPORT int tiledb_array_aio_write(
     TileDB_AIO_Request* tiledb_aio_request);
 
 
+
+
+/* ********************************* */
+/*            EXPRESSION             */
+/* ********************************* */
+
+/** A TileDB expression object. */
+typedef struct TileDB_Expression TileDB_Expression;
+
+/**
+ * Performs a binary operation on two expressions. If the input expressions
+ * are a and b, the result expression is c = a OP b, where OP is the input
+ * operator. 
+ *
+ * @param a The first expression.
+ * @param b The second expression.
+ * @param c The result expression, c = a OP b.
+ * @param op The binary operator.  It can be one of the following:
+ *     - TILEDB_EXPR_OP_ADD
+ *     - TILEDB_EXPR_OP_SUB
+ *     - TILEDB_EXPR_OP_MUL
+ *     - TILEDB_EXPR_OP_DIV
+ *     - TILEDB_EXPR_OP_MOD
+ * @return TILEDB_OK upon success, and TILEDB_ERR upon error.
+ */
+TILEDB_EXPORT int tiledb_expression_binary_op(
+    const TileDB_Expression* a,
+    const TileDB_Expression* b,
+    TileDB_Expression** c,
+    int op);
+
+/**
+ * Frees the memory consumed by the input expression.
+ *
+ * @param expr The expression to be cleared.
+ * @return TILEDB_OK upon success, and TILEDB_ERR upon error.
+ *
+ * @note Do not free an expression A that is connected (e.g., via a binary 
+ *     operator) to another expression B before B is evaluated. This is because
+ *     the expression nodes are not replicated; deleting an expression A
+ *     translates to pruning the subtrees in all the expressions that A
+ *     participates in.
+ */
+TILEDB_EXPORT int tiledb_expression_clear(TileDB_Expression* expr);
+
+/**
+ * Evaluates an expression, assigning values to the involved variables.
+ * If the expression cannot be evaluated, an error is returned.
+ *
+ * @param expr The expression to be evaluated.
+ * @param values The values assigned to the variables. Note that there
+ *     must be a one-to-one correspondence between these values and
+ *     the variable ids. To get the variable ids, call
+ *     tiledb_expression_var_ids(). To get the number of variables, call
+ *     tiledb_expression_var_num().
+ * @param types The corresponding types of 'values'.
+ * @return TILEDB_OK upon success, and TILEDB_ERR upon error.
+ */
+TILEDB_EXPORT int tiledb_expression_eval(
+    TileDB_Expression* expr,
+    const void** values,
+    const int* types);
+
+/**
+ * Initializes a TileDB expression with a constant value or a variable.
+ *
+ * @param expr The expression to be initialized.   
+ * @param type The type of the value the expression is initialized with. It can
+ *     be one of the following:
+ *     - TILEDB_EXPR_INT32
+ *     - TILEDB_EXPR_INT64
+ *     - TILEDB_EXPR_FLOAT32
+ *     - TILEDB_EXPR_FLOAT64
+ *     - TILEDB_EXPR_VAR
+ * @param data The data the expression is initialized with. If the 'type'
+ *     argument is one of the basic data types, then the data is simply
+ *     a constant, expected in the corresponding data type (e.g., if
+ *     type=TILEDB_INT32 then a 32-bit integer is expected in 'data'). If
+ *     type=TILEDB_VAR, then a variable name is expected as a string in
+ *     'data'.
+ * @return TILEDB_OK upon success, and TILEDB_ERR upon error.
+ *
+ * @note Never initialize two different expressions for the same variable.
+ *    This can lead to problems if two different expressions including the 
+ *    same variable are connected via some binary operator.
+ */
+TILEDB_EXPORT int tiledb_expression_init(
+    TileDB_Expression** epxr,
+    int type,
+    const void* data);
+
+/**
+ * Evaluates an expression, purging (i.e., pruning) every expression tree that
+ * is evaluated. If a subtree contains a variable for which no value has been
+ * given as input, then this subtree will not be purged.
+ *
+ * @param expr The expression to be evaluated.
+ * @param vars The name of the variables that will be assigned values.
+ * @param values The corresponding assigned values to 'vars'.
+ * @param types The corresponding types of 'values'.
+ * @param num The number of elements in 'vars', 'values' and 'types'.
+ * @return TILEDB_OK upon success, and TILEDB_ERR upon error.
+ */
+TILEDB_EXPORT int tiledb_expression_purge(
+    TileDB_Expression* expr,
+    const char** vars,
+    const void** values,
+    const int* types,
+    int num);
+
+/**
+ * Exports an expression to GraphViz's dot format stored in a file.
+ *
+ * @param expr The expression to be exported.
+ * @param filename The name of the file that will store the dot output.
+ * @return TILEDB_OK upon success, and TILEDB_ERR upon error.
+ */
+TILEDB_EXPORT int tiledb_expression_todot(
+    const TileDB_Expression* expr,
+    const char* filename); 
+
+/**
+ * Return the type of the expression value.
+ *
+ * @param expr The epxression whose type is returned.
+ * @param type The returned type. It can be one of the following:
+ *     - TILEDB_EXPR_NULL      (if expression not evaluated yet)
+ *     - TILEDB_EXPR_INT32
+ *     - TILEDB_EXPR_INT64
+ *     - TILEDB_EXPR_FLOAT32
+ *     - TILEDB_EXPR_FLOAT64
+ * @return TILEDB_OK upon success, and TILEDB_ERR upon error.
+ */
+TILEDB_EXPORT int tiledb_expression_type(
+    const TileDB_Expression* expr, 
+    int* type);
+
+/**
+ * Returns the value of an expression. If the expression has not been evaluated,
+ * the function returns an error.
+ *
+ * @param expr The epxression whose value is retrieved.
+ * @param value The value of the expression to be returned. It is assumed that
+ *     the caller has properly allocated memory for 'value', otherwise the
+ *     function may segfault.
+ * @return TILEDB_OK upon success, and TILEDB_ERR upon error.
+ */
+TILEDB_EXPORT int tiledb_expression_value(
+    const TileDB_Expression* expr, 
+    void* value);
+
+/**
+ * Retrieves the ids of all variables in the expression with the input names.
+ *
+ * @param expr The input epxression.
+ * @param var_names The names of the variables whose id will be retrieved.
+ * @param var_num The number of elements in 'var_names'.
+ * @param var_ids The variable ids to be retrieved. The function assumes that
+ *     the caller has already allocated enough memory for 'var_ids'. 
+ * @return TILEDB_OK upon success, and TILEDB_ERR upon error.
+ */
+TILEDB_EXPORT int tiledb_expression_var_ids(
+    const TileDB_Expression* expr, 
+    const char** var_names,
+    int var_num,
+    int* var_ids);
+
+/**
+ * Retrieves the names of all variables in the expression.
+ *
+ * @param expr The input epxression.
+ * @param var_names The variable names to be returned.
+ * @param var_num Upon the function call, this holds the number of elements
+ *     allocated for 'var_names'. Upon the termination of the function call,
+ *     this will be the actual number of variables in the expression.
+ * @return TILEDB_OK upon success, and TILEDB_ERR upon error.
+ */
+TILEDB_EXPORT int tiledb_expression_var_names(
+    const TileDB_Expression* expr, 
+    char** var_names,
+    int* var_num);
+
+/**
+ * Retrieves the number of variables in an expression.
+ *
+ * @param expr The input epxression.
+ * @param var_num The number of variables to be returned.
+ * @return TILEDB_OK upon success, and TILEDB_ERR upon error.
+ */
+TILEDB_EXPORT int tiledb_expression_var_num(
+    const TileDB_Expression* expr, 
+    int* var_num);
+
 #undef TILEDB_EXPORT
 #ifdef __cplusplus
 }

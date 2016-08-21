@@ -32,6 +32,7 @@
  */
 
 #include "tiledbpy_parse.h"
+#include "tiledbpy_indvariable.h"
 
 
 
@@ -648,6 +649,80 @@ int tiledbpy_parse_domain(
     // Copy tile extents
     domain = malloc(2 * dim_num * sizeof(double));
     memcpy(domain, &domain_vec[0], 2 * dim_num * sizeof(double));
+  }
+
+  // Success
+  return TILEDBPY_PARSE_OK;
+}
+
+int tiledbpy_parse_expression_eval(
+    PyObject* Variables,
+    char** names,
+    void** values,
+    int* types, 
+    int var_num) {
+  // Sanity checks
+  assert(PyDict_Check(Variables));
+  assert(PyDict_Size(Variables) == var_num);
+
+  // Initializations
+  PyObject *key, *value;
+  Py_ssize_t pos = 0;
+  for(int i=0; i<var_num; ++i) {
+    names[i] = NULL;
+    values[i] = NULL;
+  }
+  int i=0;
+  int rc = TILEDBPY_PARSE_OK;
+
+  // Parse variable dictionary
+  while (PyDict_Next(Variables, &pos, &key, &value)) {  
+    // Check if key is a string 
+    if(!PyObject_TypeCheck(key, &IndVariableType)) {
+      tiledbpy_parse_errmsg = 
+          "The input to the evaluation function must be a dictionary of "
+          "(independent variable: value) pairs";
+      rc = TILEDBPY_PARSE_ERR;
+      break;
+    }
+
+    // Get the variable name
+    const char* Name = ((IndVariable*)key)->name;
+    names[i] = new char[strlen(Name)+1];
+    strcpy(names[i], Name);
+
+    // Get variable type and value 
+    if(PyLong_Check(value)) {
+      types[i] = TILEDB_EXPR_INT64;
+      values[i] = malloc(sizeof(int));
+      int64_t v = PyLong_AsLong(value);
+      memcpy(values[i], &v, sizeof(int)); 
+    } else if(PyFloat_Check(value)) {
+      types[i] = TILEDB_EXPR_FLOAT64;
+      values[i] = malloc(sizeof(double));
+      double v = PyFloat_AsDouble(value);
+      memcpy(values[i], &v, sizeof(double)); 
+    } else {
+      tiledbpy_parse_errmsg = "The variable types must be long or double";
+      rc = TILEDBPY_PARSE_ERR;
+    }
+
+    // Advance variable id
+    ++i;
+  }
+
+  // Sanity check
+  assert(rc != TILEDBPY_PARSE_OK || i == var_num);
+ 
+  // Handle errors
+  if(rc != TILEDBPY_PARSE_OK) {
+    for(int i=0; i<var_num; ++i) { 
+      if(names[i] != NULL)
+        delete [] names[i];
+      if(values[i] != NULL)
+        free(values[i]);
+    }
+    return TILEDBPY_PARSE_ERR;
   }
 
   // Success

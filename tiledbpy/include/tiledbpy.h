@@ -1,5 +1,5 @@
 /**
- * @file   tiledbpy_doc.h
+ * @file   tiledbpy.h
  *
  * @section LICENSE
  *
@@ -27,12 +27,55 @@
  * 
  * @section DESCRIPTION
  *
- * This file contains the documentation of the TileDB-Py functions.
+ * Main header file of the tiledbpy module.
  */
 
-#ifndef __TILEDBPY_DOC_H__
-#define __TILEDBPY_DOC_H__
+#ifndef __TILEDBPY_H__
+#define __TILEDBPY_H__
 
+#include <Python.h>
+#include "c_api.h"
+
+
+
+
+/* ****************************** */
+/*             MACROS             */
+/* ****************************** */
+
+#ifdef __cplusplus
+extern "C" {
+#endif
+
+
+
+/* The TileDB context. */
+extern TileDB_CTX* tiledb_ctx;
+
+
+
+#if (defined __GNUC__ && __GNUC__ >= 4) || defined __INTEL_COMPILER
+#  define TILEDBPY_EXPORT __attribute__((visibility("default")))
+#else
+#  define TILEDBPY_EXPORT
+#endif
+
+
+
+
+/* ****************************** */
+/*             GLOBAL             */
+/* ****************************** */
+
+/* A TileDB-Py exception. */
+extern PyObject* tiledbpy_error;
+
+
+
+
+/* ****************************** */
+/*              DOC               */
+/* ****************************** */
 
 #define TILEDBPY_DOC_ARRAY_SCHEMA                                              \
     "Retrieves the schema of a TileDB array.\n"                                \
@@ -452,5 +495,8 @@
     "\n"                                                                       \
     "Returns:\n"                                                               \
     "   PyNone"
+
+
+}
 
 #endif

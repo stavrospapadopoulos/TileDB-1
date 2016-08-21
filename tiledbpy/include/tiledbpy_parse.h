@@ -86,6 +86,14 @@ int tiledbpy_parse_domain(
     const TileDB_ArraySchema& array_schema,
     void*& domain);
 
+/* Parse arguments for evaluating an expression. */
+int tiledbpy_parse_expression_eval(
+    PyObject* Variables,
+    char** names,
+    void** values,
+    int* types,
+    int var_num);
+
 /* Parse tile extents. */
 int tiledbpy_parse_tile_extents(
     const std::vector<PyObject*>& tile_extents_py,

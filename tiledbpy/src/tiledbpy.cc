@@ -27,16 +27,21 @@
  * 
  * @section DESCRIPTION
  *
- * This file implements TileDB-Py, the Python API for TileDB.
+ * This file implements the tiledbpy module, the Python API for TileDB.
  */
 
-#include <Python.h>
 #include <iostream>
-#include <string>
-#include "c_api.h"
-#include "tiledbpy_doc.h"
-#include "tiledbpy_parse.h"
+#include "tiledbpy.h"
+#include "tiledbpy_array.h"
 #include "tiledbpy_build.h"
+#include "tiledbpy_expression.h"
+#include "tiledbpy_indvariable.h"
+#include "tiledbpy_parse.h"
+
+
+
+/* TileDB context */
+TileDB_CTX* tiledb_ctx = NULL;
 
 
 /* ****************************** */
@@ -56,15 +61,14 @@ extern "C" {
 #endif
 
 
+
+
 /* ****************************** */
 /*             GLOBAL             */
 /* ****************************** */
 
-/* TileDB context */
-TileDB_CTX* tiledb_ctx = NULL;
-
 /* The TileDB Python exception. */
-static PyObject* tiledbpy_error;
+PyObject* tiledbpy_error = NULL;
 
 
 
@@ -530,10 +534,34 @@ PyObject* PyInit_tiledbpy() {
     return NULL;
   }
 
+  // Create IndVariable type
+  if (PyType_Ready(&IndVariableType) < 0)
+    return NULL;
+
+  // Create Expression type
+  if (PyType_Ready(&ExpressionType) < 0)
+    return NULL;
+
+  // Create Array type
+  if (PyType_Ready(&ArrayType) < 0)
+    return NULL;
+
   // Create the module
   PyObject* m = PyModule_Create(&tiledbpy_module); 
   if(m == NULL)
     return NULL;
+
+  // Add IndVariable type to module
+  Py_INCREF(&IndVariableType);
+  PyModule_AddObject(m, "IndVariable", (PyObject *)&IndVariableType); 
+
+  // Add Expression type to module
+  Py_INCREF(&IndVariableType);
+  PyModule_AddObject(m, "Expression", (PyObject *)&ExpressionType); 
+
+  // Add Array type to module
+  Py_INCREF(&ArrayType);
+  PyModule_AddObject(m, "Array", (PyObject *)&ArrayType); 
 
   // Initialize module exception
   tiledbpy_error = PyErr_NewException("tiledbpy.error", NULL, NULL);

@@ -34,7 +34,6 @@
 #define __TILEDB_EXPRESSION_H__
 
 #include <map>
-#include <set>
 #include <string>
 #include <vector>
 
@@ -114,8 +113,10 @@ class Expression {
   /*            ACCESSORS              */
   /* ********************************* */
 
-  /** Returns all nodes in the expression as a set. */
-  std::set<ExpressionNode*> gather_nodes() const;
+  /**
+   * Returns all nodes in the expression tree rooted at the input as a vector. 
+   */
+  std::vector<ExpressionNode*> gather_nodes(ExpressionNode* root) const;
 
   /**
    * Retrieves and returns the ids of the variables with the input names.
@@ -165,15 +166,9 @@ class Expression {
    */
   int value(void* ret_value) const;
 
-  /** Returns the variable ids map. */
-  const std::map<ExpressionNode*, int>& var_ids() const;
+  /** Returns the map from the variable nodes to the corresponding names. */
+  const std::map<ExpressionNode*, std::string>& var_nodes_to_names() const;
 
-  /** Returns the variable names map. */
-  const std::map<ExpressionNode*, std::string>& var_names() const;
-  
-  /** Returns the variable nodes map. */
-  const std::map<std::string, ExpressionNode*>& var_nodes() const;
-  
   /** Returns the number of variable in the expression. */
   int var_num() const;
 
@@ -199,15 +194,7 @@ class Expression {
    */
   int binary_op(const Expression& a, const Expression& b, int op);
 
-  /** 
-   * Clears the expression tree and variables. 
-   *
-   * @note Do not clear an expression A that is connected (e.g., via a binary 
-   *     operator) to another expression B before B is evaluated. This is
-   *     because the expression nodes are not replicated; deleting an expression
-   *     A translates to pruning the subtrees in all the expressions that A
-   *     participates in. This may lead to segfaults.
-   */
+  /** Clears the expression tree and variables. */
   void clear();
 
   /**
@@ -280,18 +267,44 @@ class Expression {
 
   /** The terminal node of the expression. */
   ExpressionNode* terminal_;
-  /** Mnemonic: [var_name] -> node */
-  std::map<std::string, ExpressionNode*> var_nodes_;
-  /** Mnemonic: [node] -> var_name */
-  std::map<ExpressionNode*, std::string> var_names_;
-  /** Mnemonic: [node] -> var_id */
-  std::map<ExpressionNode*, int> var_ids_;
+  /** 
+   * Part of the variable bookkeeping.
+   * Mnemonic: [var_name] -> id 
+   */
+  std::map<std::string, int> var_names_to_ids_;
+  /** 
+   * Part of the variable bookkeeping.
+   * Mnemonic: [node] -> var_name 
+   */
+  std::map<ExpressionNode*, std::string> var_nodes_to_names_;
+  /** 
+   * Part of the variable bookkeeping.
+   * Mnemonic: [node] -> var_id 
+   */
+  std::map<ExpressionNode*, int> var_nodes_to_ids_;
 
 
 
   /* ********************************* */
   /*          PRIVATE METHODS          */
   /* ********************************* */
+
+  /** Clears the variable bookkeeping. */
+  void clear_var_bookkeeping();
+
+  /**
+   * Copies all the nodes of the tree rooted at the first input (properly
+   * updating the variable bookkeeping structures), and returns the
+   * new root.
+   *
+   * @param root The root of the tree to be copied.
+   * @param var_nodes_to_names A map from a variable node to the corresponding
+   *     variable name.
+   * @return The root of the newly copied tree. 
+   */
+  ExpressionNode* copy_tree(
+      ExpressionNode* root, 
+      const std::map<ExpressionNode*, std::string>& var_nodes_to_names);
 
   /** Clears the contents of an expression node and deletes the node. */
   void delete_node(ExpressionNode* node) const;
@@ -401,9 +414,6 @@ class Expression {
    */
   bool is_operator(int type) const;
 
-  /** Merges the input variables into the local variable bookkeeping. */
-  void merge_vars(const std::map<ExpressionNode*, std::string>& var_names);
-
   /** 
    * Creates and returns a new expression node storing the input type and data. 
    */
@@ -417,7 +427,7 @@ class Expression {
    * @param values The values assigned to the variables. Note that there
    *     must be a one-to-one correspondence between these values and
    *     the variable ids. To get the variable ids, call
-   *     var_ids().
+   *     get_var_ids().
    * @param types The corresponding types of 'values'.
    * @return TILEDB_OK upon success, and TILEDB_ERR upon error.
    */
@@ -430,11 +440,7 @@ class Expression {
    * the operator must have two constant children, otherwise the node is left
    * intact.
    *
-   * @param values The values assigned to the variables. Note that there
-   *     must be a one-to-one correspondence between these values and
-   *     the variable ids. To get the variable ids, call
-   *     var_ids().
-   * @param types The corresponding types of 'values'.
+   * @param node The node to be purged.
    * @return void
    */
   void purge_op(ExpressionNode* node);
@@ -444,10 +450,11 @@ class Expression {
    * is assigned to. If the variable is not assigned some value, the node
    * remains intact.
    *
+   * @param node The variable node to be purged.
    * @param var_values The values assigned to the variables. Note that there
    *     must be a one-to-one correspondence between these values and
    *     the variable ids. To get the variable ids, call
-   *     var_ids().
+   *     get_var_ids().
    * @param var_types The corresponding types of 'var_values'.
    * @return void
    */

@@ -1251,12 +1251,6 @@ TILEDB_EXPORT int tiledb_expression_binary_op(
  *
  * @param expr The expression to be cleared.
  * @return TILEDB_OK upon success, and TILEDB_ERR upon error.
- *
- * @note Do not free an expression A that is connected (e.g., via a binary 
- *     operator) to another expression B before B is evaluated. This is because
- *     the expression nodes are not replicated; deleting an expression A
- *     translates to pruning the subtrees in all the expressions that A
- *     participates in.
  */
 TILEDB_EXPORT int tiledb_expression_clear(TileDB_Expression* expr);
 

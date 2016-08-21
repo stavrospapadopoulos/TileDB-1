@@ -64,14 +64,10 @@ void create_expression(TileDB_Expression*& expr) {
   tiledb_expression_binary_op(tmp_expr3, tmp_expr4, &expr, TILEDB_EXPR_OP_ADD);
 
   // Clean up
-  free(tmp_expr1);
-  free(tmp_expr2);
-  free(tmp_expr3);
-  free(tmp_expr4);
-
-  // NOTE: We do NOT invoke tiledb_expression_clear on any tmp_expr*.
-  // We will invoke it once for expr, and the memory of tmp_expr*
-  // will be deallocated there. 
+  tiledb_expression_clear(tmp_expr1);
+  tiledb_expression_clear(tmp_expr2);
+  tiledb_expression_clear(tmp_expr3);
+  tiledb_expression_clear(tmp_expr4);
 }
 
 /* Print info about the expression on the screen */
@@ -207,9 +203,7 @@ int main() {
   evaluate(expr, 3, 5.1);
 
   // Clean up
-  // NOTE: tiledb_expression_clear on expr is necessary!
   tiledb_expression_clear(expr);
-  free(expr);
 
   return 0;
 }

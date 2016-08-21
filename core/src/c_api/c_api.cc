@@ -1623,17 +1623,12 @@ int tiledb_expression_binary_op(
 
 int tiledb_expression_clear(TileDB_Expression* expr) {
   // Sanity check
-  if(expr == NULL) {
-    std::string errmsg = "Cannot free expression; Expression is null";
-    PRINT_ERROR(errmsg);
-    strcpy(tiledb_errmsg, (TILEDB_ERRMSG + errmsg).c_str());
-    return TILEDB_ERR;
-  }
+  if(expr == NULL) 
+    return TILEDB_OK;
 
   // Clean up
-  expr->expr_->clear();
   delete expr->expr_;
-  expr->expr_ = NULL;
+  free(expr);
 
   // Success
   return TILEDB_OK;
@@ -1673,6 +1668,7 @@ int tiledb_expression_init(
   // Initialize expression
   if((*expr)->expr_->init(type, data) != TILEDB_EXPR_OK) {
     strcpy(tiledb_errmsg, tiledb_expr_errmsg.c_str());
+    tiledb_expression_clear(*expr);
     return TILEDB_ERR;
   }
 

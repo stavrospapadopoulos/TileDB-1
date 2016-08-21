@@ -74,6 +74,7 @@ Expression::Expression() {
 }
 
 Expression::~Expression() {
+  clear();
 }
 
 
@@ -83,13 +84,13 @@ Expression::~Expression() {
 /*           ACCESSORS            */
 /* ****************************** */
 
-std::set<ExpressionNode*> Expression::gather_nodes() const {
+std::vector<ExpressionNode*> Expression::gather_nodes(
+    ExpressionNode* root) const {
   // Nodes to be returned
-  std::set<ExpressionNode*> nodes;
+  std::vector<ExpressionNode*> nodes;
 
   // We run a postorder traversal using a stack
   std::stack<ExpressionNode*> st;
-  ExpressionNode* root = terminal_;
 
   // Trivial case
   if(root == NULL)
@@ -118,7 +119,7 @@ std::set<ExpressionNode*> Expression::gather_nodes() const {
       root = root->in_[1];
     } else {
       // Process root
-      nodes.insert(root);
+      nodes.push_back(root);
       root = NULL; 
     }
   } while(!st.empty());
@@ -132,14 +133,13 @@ std::vector<int> Expression::get_var_ids(
     int var_num) const {
   // Get variable ids
   std::vector<int> ids;
-  std::map<std::string, ExpressionNode*>::const_iterator it;
-  std::map<std::string, ExpressionNode*>::const_iterator it_end = 
-      var_nodes_.end();
+  std::map<std::string, int>::const_iterator it;
+  std::map<std::string, int>::const_iterator it_end = var_names_to_ids_.end();
   
   for(int i=0; i<var_num; ++i) { 
-    it = var_nodes_.find(var_names[i]);
+    it = var_names_to_ids_.find(var_names[i]);
     if(it != it_end)
-      ids.push_back(var_ids_.find(it->second)->second);
+      ids.push_back(it->second);
     else 
       ids.push_back(-1);
   }
@@ -151,10 +151,8 @@ std::vector<int> Expression::get_var_ids(
 std::vector<std::string> Expression::get_var_names() const {
   // Get variable names
   std::vector<std::string> names;
-  std::map<std::string, ExpressionNode*>::const_iterator it = 
-      var_nodes_.begin();
-  std::map<std::string, ExpressionNode*>::const_iterator it_end = 
-      var_nodes_.end();
+  std::map<std::string, int>::const_iterator it = var_names_to_ids_.begin();
+  std::map<std::string, int>::const_iterator it_end = var_names_to_ids_.end();
   
   for(; it != it_end; ++it) 
     names.push_back(it->first);
@@ -162,11 +160,6 @@ std::vector<std::string> Expression::get_var_names() const {
   // Return variable names
   return names;
 }
-
-const std::map<ExpressionNode*, int>& Expression::var_ids() const {
-  return var_ids_;
-}
-
 
 ExpressionNode* Expression::terminal() const {
   return terminal_;
@@ -185,9 +178,9 @@ int Expression::type(int* ret_type) const {
 
 int Expression::todot(const char* filename) const {
   // Gather nodes
-  std::set<ExpressionNode*> nodes = gather_nodes();
-  std::set<ExpressionNode*>::iterator node_it = nodes.begin();
-  std::set<ExpressionNode*>::iterator node_it_end = nodes.end();
+  std::vector<ExpressionNode*> nodes = gather_nodes(terminal_);
+  std::vector<ExpressionNode*>::iterator node_it = nodes.begin();
+  std::vector<ExpressionNode*>::iterator node_it_end = nodes.end();
 
   // Create a map from nodes to ids
   std::map<ExpressionNode*, int> node_ids;
@@ -204,12 +197,12 @@ int Expression::todot(const char* filename) const {
   for(node_it=nodes.begin(); node_it != node_it_end; ++node_it) {
     // For easy reference
     ExpressionNode* node = *node_it;
-
+    assert(node != NULL);
     // Write node
     if(node->type_ == TILEDB_EXPR_NULL) {
       ss << "n" << node_ids[node] << "[label=\"NULL\"]\n"; 
     } else if(node->type_ == TILEDB_EXPR_VAR) {
-      std::string var_name = var_names_.find(node)->second;
+      std::string var_name = var_nodes_to_names_.find(node)->second;
       ss << "n" << node_ids[node] 
          << "[label=\"" << var_name << "\"]\n";
     } else if(is_operator(node->type_)){
@@ -344,16 +337,13 @@ int Expression::value(void* ret_value) const {
   return TILEDB_EXPR_OK;
 }
 
-const std::map<ExpressionNode*, std::string>& Expression::var_names() const {
-  return var_names_;
-}
-
-const std::map<std::string, ExpressionNode*>& Expression::var_nodes() const {
-  return var_nodes_;
+const std::map<ExpressionNode*, std::string>& 
+Expression::var_nodes_to_names() const {
+  return var_nodes_to_names_;
 }
 
 int Expression::var_num() const {
-  return var_nodes_.size();
+  return var_names_to_ids_.size();
 }
 
 
@@ -378,44 +368,35 @@ int Expression::binary_op(
     tiledb_expr_errmsg = TILEDB_EXPR_ERRMSG + errmsg;
   }
 
-  // Create new operator node
-  ExpressionNode* op_node = new_node(op, NULL);
-
   // Find proper left and right child nodes
-  ExpressionNode *left, *right;
+  ExpressionNode *left, *right, *new_left, *new_right;
   ExpressionNode* tmp_left = a.terminal();
   ExpressionNode* tmp_right = b.terminal();
-  if(tmp_left->type_ == TILEDB_EXPR_NULL) {
-    // Remove the terminal node of expression a 
+  if(tmp_left->type_ == TILEDB_EXPR_NULL) 
     left = tmp_left->in_[0];
-    delete_node(tmp_left);
-  } else {
+  else 
     left = tmp_left;
-  }
-  if(tmp_right->type_ == TILEDB_EXPR_NULL) {
-    // Remove the terminal node of expression b
+  if(tmp_right->type_ == TILEDB_EXPR_NULL) 
     right = tmp_right->in_[0];
-    delete_node(tmp_right);
-  } else {
+  else
     right = tmp_right;
-  }
 
-  // Connect the terminal nodes of the input expressions
-  op_node->in_[0] = left;
-  op_node->in_[1] = right;
-  left->out_ = op_node;
-  right->out_ = op_node;
+  // Copy the two trees
+  clear_var_bookkeeping();
+  new_left = copy_tree(left, a.var_nodes_to_names());
+  new_right = copy_tree(right, b.var_nodes_to_names());
+
+  // Create new operator node
+  ExpressionNode* op_node = new_node(op, NULL);
+  op_node->in_[0] = new_left;
+  op_node->in_[1] = new_right;
+  new_left->out_ = op_node;
+  new_right->out_ = op_node;
 
   // Create new terminal node and connect the operator node to it
   terminal_ = new_node(TILEDB_EXPR_NULL, NULL); 
   op_node->out_ = terminal_;
   terminal_->in_[0] = op_node;
-
-  // Merge the map of variables of the two expressions
-  var_nodes_ = a.var_nodes();
-  var_names_ = a.var_names();
-  var_ids_ = a.var_ids();
-  merge_vars(b.var_names());
 
   // Success
   return TILEDB_EXPR_OK;
@@ -423,17 +404,15 @@ int Expression::binary_op(
   
 void Expression::clear() {
   // Gather nodes to delete
-  std::set<ExpressionNode*> nodes = gather_nodes();
+  std::vector<ExpressionNode*> nodes = gather_nodes(terminal_);
 
   // Delete nodes
-  std::set<ExpressionNode*>::iterator it = nodes.begin();
-  std::set<ExpressionNode*>::iterator it_end = nodes.end();
+  std::vector<ExpressionNode*>::iterator it = nodes.begin();
+  std::vector<ExpressionNode*>::iterator it_end = nodes.end();
   for(; it != it_end; ++it) 
     delete_node(*it);
 
-  var_nodes_.clear();
-  var_names_.clear(); 
-  var_ids_.clear();
+  clear_var_bookkeeping();
   terminal_ = NULL;
 }
 
@@ -449,10 +428,18 @@ int Expression::eval(
   }
 
   // Trivial case #1 - Terminal is constant, so do nothing
-  if(is_constant(terminal_->type_))
+  if(is_constant(terminal_->type_) && terminal_->in_[0] == NULL)
     return TILEDB_EXPR_OK;
 
-  // Trivial case #2 - Terminal is the output of a variable
+  // Trivial case #2 - No variables are provided
+  if(types == NULL || values == NULL) {
+    std::string errmsg = "Cannot evaluate expression; No variable values given";
+    PRINT_ERROR(errmsg);
+    tiledb_expr_errmsg = TILEDB_EXPR_ERRMSG + errmsg;
+    return TILEDB_EXPR_ERR;
+  }
+
+  // Trivial case #3 - Terminal is the output of a variable
   // Copy the variable value
   assert(terminal_->in_[0] != NULL);
   if(terminal_->in_[0]->type_ == TILEDB_EXPR_VAR) {
@@ -538,14 +525,12 @@ int Expression::init(int type, const void* data) {
     ExpressionNode* var_node = new_node(type, NULL);
 
     // Update variable bookkeeping
-    std::map<std::string, ExpressionNode*>::iterator it;
+    std::map<std::string, int>::iterator it;
     const char* name = (const char*) data;
-    it = var_nodes_.find(name);
-    if(it == var_nodes_.end())  {
-      var_nodes_[name] = var_node;
-      var_names_[var_node] = name;
-      var_ids_[var_node] = 0;
-    }
+    it = var_names_to_ids_.find(name);
+    var_names_to_ids_[name] = 0;
+    var_nodes_to_names_[var_node] = name;
+    var_nodes_to_ids_[var_node] = 0;
 
     // Create terminal node
     int null_type = TILEDB_EXPR_NULL;
@@ -577,20 +562,20 @@ int Expression::purge(
     var_types[i] = TILEDB_EXPR_NULL;
     var_values[i] = NULL;
   }
-  std::map<std::string, ExpressionNode*>::iterator it;
-  std::map<std::string, ExpressionNode*>::iterator it_end = var_nodes_.end();
 
   // Get variable types and values
+  std::map<std::string, int>::iterator it;
+  std::map<std::string, int>::iterator it_end = var_names_to_ids_.end();
   for(int i=0; i<num; ++i) {
-    it = var_nodes_.find(names[i]);
+    it = var_names_to_ids_.find(names[i]);
     if(it == it_end) {
       std::string errmsg = "Cannot purge expression; Invalid variable name";
       PRINT_ERROR(errmsg);
       tiledb_expr_errmsg = TILEDB_EXPR_ERRMSG + errmsg;
       return TILEDB_EXPR_ERR;
     } else {
-      var_types[var_ids_.find(it->second)->second] = types[i]; 
-      var_values[var_ids_.find(it->second)->second] = values[i]; 
+      var_types[it->second] = types[i]; 
+      var_values[it->second] = values[i]; 
     }
   }
 
@@ -599,12 +584,18 @@ int Expression::purge(
   
   // Update variable ids
   if(rc == TILEDB_EXPR_OK) {
-    std::map<ExpressionNode*, int> new_var_ids;
-    std::map<ExpressionNode*, int>::iterator it = var_ids_.begin();
-    std::map<ExpressionNode*, int>::iterator it_end = var_ids_.end();
-    for(int var_id=0; it != it_end; ++it, ++var_id) 
-      new_var_ids[it->first] = var_id;
-    var_ids_ = new_var_ids;
+    std::map<std::string, int> var_names_to_ids;
+    std::map<ExpressionNode*, int> var_nodes_to_ids;
+    std::map<ExpressionNode*, std::string>::iterator it = 
+        var_nodes_to_names_.begin();
+    std::map<ExpressionNode*, std::string>::iterator it_end = 
+        var_nodes_to_names_.end();
+    for(int var_id=0; it != it_end; ++it, ++var_id) { 
+      var_nodes_to_ids[it->first] = var_id;
+      var_names_to_ids[it->second] = var_id;
+    }
+    var_names_to_ids_ = var_names_to_ids;
+    var_nodes_to_ids_ = var_nodes_to_ids;
   }
 
   // Clean up
@@ -619,6 +610,79 @@ int Expression::purge(
 /* ****************************** */
 /*        PRIVATE METHODS         */
 /* ****************************** */
+
+void Expression::clear_var_bookkeeping() {
+  var_names_to_ids_.clear();
+  var_nodes_to_names_.clear();
+  var_nodes_to_ids_.clear();
+}
+
+ExpressionNode* Expression::copy_tree(
+    ExpressionNode* root,
+    const std::map<ExpressionNode*, std::string>& var_nodes_to_names) {
+  // Initializations
+  std::vector<ExpressionNode*> nodes = gather_nodes(root);
+  std::vector<ExpressionNode*>::iterator it = nodes.begin();
+  std::vector<ExpressionNode*>::iterator it_end = nodes.end();
+  ExpressionNode* new_root = NULL;
+  std::map<ExpressionNode*, ExpressionNode*> nodes_to_new_nodes;
+
+  // Create nodes first
+  for(; it != it_end; ++it) {
+    // For easy reference
+    ExpressionNode* node = *it;
+
+    // Clone node
+    ExpressionNode* new_node = this->new_node(node->type_, node->data_);
+    
+    // Map node to new node 
+    nodes_to_new_nodes[node] = new_node;
+
+    // Set new root
+    if(node == root)
+      new_root = new_node;
+
+    // Update variable bookkeeping
+    if(new_node->type_ == TILEDB_EXPR_VAR) {
+      std::map<std::string, int>::iterator it;
+      std::string name = (var_nodes_to_names.find(node))->second;
+      it = var_names_to_ids_.find(name);
+      int var_id;
+      if(it == var_names_to_ids_.end())  {
+        var_id = (int)var_names_to_ids_.size();
+        var_names_to_ids_[name] = var_id;
+      } else {
+        var_id = it->second; 
+      }
+      var_nodes_to_names_[new_node] = name;
+      var_nodes_to_ids_[new_node] = var_id;
+    }
+  }
+
+  // Connect the nodes
+  std::map<ExpressionNode*, ExpressionNode*>::iterator 
+      it_n = nodes_to_new_nodes.begin();
+  std::map<ExpressionNode*, ExpressionNode*>::iterator 
+      it_n_end = nodes_to_new_nodes.end();
+  for(; it_n != it_n_end; ++it_n) {
+    // For easy reference
+    ExpressionNode* node = it_n->first;
+    ExpressionNode* new_node = it_n->second;
+
+    // In edges
+    new_node->in_[0] = nodes_to_new_nodes[node->in_[0]];
+    new_node->in_[1] = nodes_to_new_nodes[node->in_[1]];
+  
+    // Out edge for new root
+    if(new_node == new_root) 
+      new_node->out_ = NULL;
+    else 
+      new_node->out_ = nodes_to_new_nodes[node->out_];
+  }
+
+  // Return
+  return new_root;
+}
 
 void Expression::delete_node(ExpressionNode* node) const {
   free(node->data_);
@@ -808,7 +872,7 @@ void Expression::eval_var(
   ExpressionNode* var_node = node->in_[0];
 
   // Check if the variable value is given
-  int var_id = (var_ids_.find(var_node))->second; 
+  int var_id = (var_nodes_to_ids_.find(var_node))->second; 
   if(var_types[var_id] == TILEDB_EXPR_NULL)
     return;
 
@@ -871,7 +935,16 @@ int Expression::get_value(
       ret_value = value;
     }
   } else if(node->type_ == TILEDB_EXPR_VAR) {
-    int var_id = (var_ids_.find(node))->second;
+    // Sanity check
+    if(var_types == NULL || var_values == NULL) {
+      std::string errmsg = 
+          "Cannot get variable value; Invalid input types/values";
+      PRINT_ERROR(errmsg);
+      tiledb_expr_errmsg = TILEDB_EXPR_ERRMSG + errmsg;
+      return TILEDB_EXPR_ERR;
+    }  
+
+    int var_id = (var_nodes_to_ids_.find(node))->second;
     if(var_types[var_id] == TILEDB_EXPR_INT32) {
       int var_value;
       memcpy(&var_value, var_values[var_id], sizeof(int));
@@ -942,24 +1015,6 @@ bool Expression::is_operator(int type) const {
          type == TILEDB_EXPR_OP_MUL ||
          type == TILEDB_EXPR_OP_DIV ||
          type == TILEDB_EXPR_OP_MOD;
-}
-
-void Expression::merge_vars(
-    const std::map<ExpressionNode*, std::string>& var_names) {
-  std::map<ExpressionNode*, std::string>::const_iterator it = 
-      var_names.begin();
-  std::map<ExpressionNode*, std::string>::const_iterator it_end = 
-      var_names.end();
-  int var_num;
-
-  for(; it != it_end; ++it) {
-    var_num = (int) var_names_.size();
-    if(var_nodes_.find(it->second) == var_nodes_.end()) { 
-      var_nodes_[it->second] = it->first;
-      var_names_[it->first] = it->second;
-      var_ids_[it->first] = var_num;
-    }
-  }
 }
 
 ExpressionNode* Expression::new_node(int type, const void* data) const {
@@ -1153,9 +1208,10 @@ void Expression::purge_var(
     const int* var_types) {
   // Sanoty check
   assert(node->type_ == TILEDB_EXPR_VAR);
+  assert(var_nodes_to_ids_.find(node) != var_nodes_to_ids_.end());
 
   // If the variable has not been proivided, return
-  int var_id = var_ids_[node]; 
+  int var_id = var_nodes_to_ids_[node]; 
   if(var_types[var_id] == TILEDB_EXPR_NULL)
     return;
 
@@ -1173,12 +1229,13 @@ void Expression::purge_var(
     assert(0); // The code should never reach here
 
   // Update variable bookkeeping
-  std::map<ExpressionNode*, std::string>::iterator it = var_names_.find(node);
-  std::map<ExpressionNode*, std::string>::iterator it_end = var_names_.end();
+  std::map<ExpressionNode*, std::string>::iterator it = 
+      var_nodes_to_names_.find(node);
+  std::map<ExpressionNode*, std::string>::iterator it_end = 
+      var_nodes_to_names_.end();
   if(it != it_end) {
-    var_ids_.erase(node);
-    var_nodes_.erase(it->second);
-    var_names_.erase(node); 
+    var_nodes_to_names_.erase(node);
+    var_nodes_to_ids_.erase(node); 
   }
 }
 
@@ -1186,7 +1243,7 @@ int Expression::type(
     const ExpressionNode* node,
     const int* types) const {
   if(node->type_ == TILEDB_EXPR_VAR) // Variable 
-    return types[(var_ids_.find((ExpressionNode*) node))->second];
+    return types[(var_nodes_to_ids_.find((ExpressionNode*) node))->second];
   else if(is_operator(node->type_)) // Operator
     return *((int*)node->data_);
   else                               // Constant

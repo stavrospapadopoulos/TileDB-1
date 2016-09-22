@@ -107,7 +107,6 @@ void Array::aio_handle_requests() {
       return;
     }
 
-
     // Wait for AIO requests
     while(aio_queue_.size() == 0) {
       // If the thread is canceled, unblock and exit
@@ -241,8 +240,22 @@ int Array::read(void** buffers, size_t* buffer_sizes) {
     return TILEDB_AR_ERR;
   }
 
-  // TODO: distinguish between the read modes
+  // Handle sorted modes
+  if(mode_ == TILEDB_ARRAY_READ_SORTED_COL ||
+     mode_ == TILEDB_ARRAY_READ_SORTED_ROW) { 
+      int rc = array_sorted_read_state_->read(buffers, buffer_sizes);
+      if(rc == TILEDB_ASRS_OK) {
+        return TILEDB_AR_OK;
+      } else {
+        // TODO: propagate error message
+        return TILEDB_AR_ERR;
+      }
+  } else { // mode_ == TILDB_ARRAY_READ 
+    return read_default(buffers, buffer_sizes);
+  }
+}
 
+int Array::read_default(void** buffers, size_t* buffer_sizes) {
   int buffer_i = 0;
   int attribute_id_num = attribute_ids_.size();
   bool success = false;
@@ -255,9 +268,8 @@ int Array::read(void** buffers, size_t* buffer_sizes) {
         buffer_i += 2;
     }
     success = true;
-    } else {
-    if(array_read_state_->read(buffers, buffer_sizes) == 
-       TILEDB_ARS_OK)
+  } else {
+    if(array_read_state_->read(buffers, buffer_sizes) == TILEDB_ARS_OK)
       success = true;
   }
 
@@ -502,7 +514,7 @@ int Array::init(
   
   // Set attribute ids
   if(array_schema->get_attribute_ids(attributes_vec, attribute_ids_) 
-         == TILEDB_AS_ERR)
+         != TILEDB_AS_OK)
     return TILEDB_AR_ERR;
 
   // Set array schema
@@ -523,11 +535,27 @@ int Array::init(
       return TILEDB_AR_ERR;
     }
   } else {           // READ MODE
+    // Open fragments
     if(open_fragments(fragment_names, book_keeping) != TILEDB_AR_OK) {
       array_schema_ = NULL;
       return TILEDB_AR_ERR;
     }
+    
+    // Create ArrayReadState
     array_read_state_ = new ArrayReadState(this);
+
+    // Create ArraySortedReadState
+    if(mode_ != TILEDB_ARRAY_READ) { 
+      array_sorted_read_state_ = new ArraySortedReadState(this);
+      if(array_sorted_read_state_->init() != TILEDB_ASRS_OK) {
+        // TODO: carry the error message, tiledb_ar_errmsg = tiledb_asrs_errmsg
+        delete array_sorted_read_state_;
+        array_sorted_read_state_ = NULL;
+        return TILEDB_AR_ERR; 
+      }
+    } else {
+      array_sorted_read_state_ = NULL;
+    }
   } 
 
   // Initialize the AIO-related members
@@ -577,7 +605,11 @@ int Array::reset_attributes(
 
   // Set attribute ids
   if(array_schema_->get_attribute_ids(attributes_vec, attribute_ids_) 
-         == TILEDB_AS_ERR)
+         != TILEDB_AS_OK)
+    return TILEDB_AR_ERR;
+
+  // Reset subarray so that the read/write states are flushed
+  if(reset_subarray(subarray_) != TILEDB_AR_OK)
     return TILEDB_AR_ERR;
 
   // Success
@@ -633,6 +665,21 @@ int Array::reset_subarray(const void* subarray) {
       array_read_state_ = NULL;
     }
     array_read_state_ = new ArrayReadState(this);
+
+    // Re-initialize ArraySortedReadState
+    if(array_sorted_read_state_ != NULL) 
+      delete array_sorted_read_state_;
+    if(mode_ != TILEDB_ARRAY_READ) { 
+      array_sorted_read_state_ = new ArraySortedReadState(this);
+      if(array_sorted_read_state_->init() != TILEDB_ASRS_OK) {
+        // TODO: carry the error message, tiledb_ar_errmsg = tiledb_asrs_errmsg
+        delete array_sorted_read_state_;
+        array_sorted_read_state_ = NULL;
+        return TILEDB_AR_ERR; 
+      }
+    } else {
+      array_sorted_read_state_ = NULL;
+    }
   }
 
   // Success
@@ -742,15 +789,15 @@ int Array::aio_push_request(AIO_Request* aio_request) {
   // Push request
   aio_queue_.push(aio_request);
 
-  // Unlock AIO mutext
-  if(pthread_mutex_unlock(&aio_mtx_)) {
-    PRINT_ERROR("Cannot unlock AIO mutex");
-    return TILEDB_AR_ERR;
-  }
-
   // Signal AIO thread
   if(pthread_cond_signal(&aio_cond_)) { 
     PRINT_ERROR("Cannot signal AIO thread");
+    return TILEDB_AR_ERR;
+  }
+
+  // Unlock AIO mutext
+  if(pthread_mutex_unlock(&aio_mtx_)) {
+    PRINT_ERROR("Cannot unlock AIO mutex");
     return TILEDB_AR_ERR;
   }
 

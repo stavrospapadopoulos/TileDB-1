@@ -1330,6 +1330,7 @@ int tiledb_array_aio_read(
   aio_request->id_ = (size_t) tiledb_aio_request;
   aio_request->buffers_ = tiledb_aio_request->buffers_;
   aio_request->buffer_sizes_ = tiledb_aio_request->buffer_sizes_;
+  aio_request->mode_ = tiledb_array->array_->mode();
   aio_request->status_ = &(tiledb_aio_request->status_);
   aio_request->subarray_ = tiledb_aio_request->subarray_;
   aio_request->completion_handle_ = tiledb_aio_request->completion_handle_;
@@ -1354,6 +1355,7 @@ int tiledb_array_aio_write(
   aio_request->id_ = (size_t) tiledb_aio_request;
   aio_request->buffers_ = tiledb_aio_request->buffers_;
   aio_request->buffer_sizes_ = tiledb_aio_request->buffer_sizes_;
+  aio_request->mode_ = tiledb_array->array_->mode();
   aio_request->status_ = &(tiledb_aio_request->status_);
   aio_request->subarray_ = tiledb_aio_request->subarray_;
   aio_request->completion_handle_ = tiledb_aio_request->completion_handle_;

@@ -87,6 +87,9 @@ Array::~Array() {
 
   if(array_read_state_ != NULL)
     delete array_read_state_;
+
+  if(array_sorted_read_state_ != NULL)
+    delete array_sorted_read_state_;
 }
 
 
@@ -431,6 +434,12 @@ int Array::finalize() {
   if(array_read_state_ != NULL) {
     delete array_read_state_;
     array_read_state_ = NULL;
+  }
+
+  // Clean the array sorted read state
+  if(array_sorted_read_state_ != NULL) {
+    delete array_sorted_read_state_;
+    array_sorted_read_state_ = NULL;
   }
 
   // Clean the AIO-related members

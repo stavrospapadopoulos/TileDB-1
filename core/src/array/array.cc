@@ -526,6 +526,8 @@ int Array::init(
       attributes_vec.pop_back(); 
   } else {                 // Custom attributes
     // Get attributes
+    bool coords_found = false;
+    bool sparse = !array_schema->dense();
     for(int i=0; i<attribute_num; ++i) {
       // Check attribute name length
       if(attributes[i] == NULL || strlen(attributes[i]) > TILEDB_NAME_MAX_LEN) {
@@ -533,6 +535,8 @@ int Array::init(
         return TILEDB_AR_ERR;
       }
       attributes_vec.push_back(attributes[i]);
+      if(!strcmp(attributes[i], TILEDB_COORDS))
+        coords_found = true;
     }
 
     // Sanity check on duplicates 
@@ -540,6 +544,11 @@ int Array::init(
       PRINT_ERROR("Cannot initialize array; Duplicate attributes");
       return TILEDB_AR_ERR;
     }
+
+    // For the case of the clone sparse array, append coordinates if they do
+    // not exist already
+    if(sparse && array_clone == NULL && !coords_found)
+      attributes_vec.push_back(TILEDB_COORDS);
   }
   
   // Set attribute ids

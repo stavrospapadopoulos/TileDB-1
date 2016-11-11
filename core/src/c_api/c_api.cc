@@ -91,7 +91,9 @@ int tiledb_ctx_init(
   if(tiledb_config != NULL)
     config->init(
         tiledb_config->home_, 
+#ifdef HAVE_MPI
         tiledb_config->mpi_comm_, 
+#endif
         tiledb_config->read_method_, 
         tiledb_config->write_method_);
 
@@ -713,6 +715,49 @@ int tiledb_array_finalize(TileDB_Array* tiledb_array) {
                tiledb_array->array_);
 
   free(tiledb_array);
+
+  // Error
+  if(rc != TILEDB_SM_OK) {
+    strcpy(tiledb_errmsg, tiledb_sm_errmsg.c_str());
+    return TILEDB_ERR; 
+  }
+   
+  // Success
+  return TILEDB_OK;
+}
+
+int tiledb_array_sync(TileDB_Array* tiledb_array) {
+  // Sanity check
+  if(!sanity_check(tiledb_array) ||
+     !sanity_check(tiledb_array->tiledb_ctx_))
+    return TILEDB_ERR;
+
+  // Sync
+  int rc = tiledb_array->tiledb_ctx_->storage_manager_->array_sync(
+               tiledb_array->array_);
+
+  // Error
+  if(rc != TILEDB_SM_OK) {
+    strcpy(tiledb_errmsg, tiledb_sm_errmsg.c_str());
+    return TILEDB_ERR; 
+  }
+   
+  // Success
+  return TILEDB_OK;
+}
+
+int tiledb_array_sync_attribute(
+    TileDB_Array* tiledb_array,
+    const char* attribute) {
+  // Sanity check
+  if(!sanity_check(tiledb_array) ||
+     !sanity_check(tiledb_array->tiledb_ctx_))
+    return TILEDB_ERR;
+
+  // Sync attribute
+  int rc = tiledb_array->tiledb_ctx_->storage_manager_->array_sync_attribute(
+               tiledb_array->array_,
+               attribute);
 
   // Error
   if(rc != TILEDB_SM_OK) {

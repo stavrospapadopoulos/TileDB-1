@@ -280,11 +280,26 @@ int Array::read(void** buffers, size_t* buffer_sizes) {
     return TILEDB_AR_ERR;
   }
 
+  // Check if there are no fragments 
+  int buffer_i = 0;
+  int attribute_id_num = attribute_ids_.size();
+  if(fragments_.size() == 0) {             
+    for(int i=0; i<attribute_id_num; ++i) {
+      // Update all sizes to 0
+      buffer_sizes[buffer_i] = 0; 
+      if(!array_schema_->var_size(attribute_ids_[i])) 
+        ++buffer_i;
+      else 
+        buffer_i += 2;
+    }
+    return TILEDB_AR_OK;
+  }
+
   // Handle sorted modes
   if(mode_ == TILEDB_ARRAY_READ_SORTED_COL ||
      mode_ == TILEDB_ARRAY_READ_SORTED_ROW) { 
-      int rc = array_sorted_read_state_->read(buffers, buffer_sizes);
-      if(rc == TILEDB_ASRS_OK) {
+      if(array_sorted_read_state_->read(buffers, buffer_sizes) == 
+         TILEDB_ASRS_OK) {
         return TILEDB_AR_OK;
       } else {
         tiledb_ar_errmsg = tiledb_asrs_errmsg;
@@ -296,33 +311,13 @@ int Array::read(void** buffers, size_t* buffer_sizes) {
 }
 
 int Array::read_default(void** buffers, size_t* buffer_sizes) {
-  int buffer_i = 0;
-  int attribute_id_num = attribute_ids_.size();
-  bool success = false;
-
-  // Check if there are no fragments 
-  if(fragments_.size() == 0) {             
-    for(int i=0; i<attribute_id_num; ++i) {
-      // Update all sizes to 0
-      buffer_sizes[buffer_i] = 0; 
-      if(!array_schema_->var_size(attribute_ids_[i])) 
-        ++buffer_i;
-      else 
-        buffer_i += 2;
-    }
-    success = true;
-  } else {
-    if(array_read_state_->read(buffers, buffer_sizes) == TILEDB_ARS_OK)
-      success = true;
-  }
-
-  // Return
-  if(success) {
-    return TILEDB_AR_OK;
-  } else {
+  if(array_read_state_->read(buffers, buffer_sizes) != TILEDB_ARS_OK) {
     tiledb_ar_errmsg = tiledb_ars_errmsg;
     return TILEDB_AR_ERR;
   }
+
+  // Success
+  return TILEDB_AR_OK;
 }
 
 bool Array::read_mode() const {
@@ -884,6 +879,48 @@ int Array::reset_subarray_soft(const void* subarray) {
 
   // Success
   return TILEDB_AR_OK;
+}
+
+int Array::sync() {
+  // Sanity check
+  if(!write_mode()) {
+    std::string errmsg = "Cannot sync array; Invalid mode";
+    PRINT_ERROR(errmsg);
+    tiledb_ar_errmsg = TILEDB_AR_ERRMSG + errmsg;
+    return TILEDB_AR_ERR;
+  }
+
+  // Sanity check
+  assert(fragments_.size() == 1);
+
+  // Sync fragment
+  if(fragments_[0]->sync() != TILEDB_FG_OK) {
+    tiledb_ar_errmsg = tiledb_fg_errmsg;
+    return TILEDB_AR_ERR;
+  } else {
+    return TILEDB_AR_OK;
+  }
+}
+
+int Array::sync_attribute(const std::string& attribute) {
+  // Sanity checks
+  if(!write_mode()) {
+    std::string errmsg = "Cannot sync attribute; Invalid mode";
+    PRINT_ERROR(errmsg);
+    tiledb_ar_errmsg = TILEDB_AR_ERRMSG + errmsg;
+    return TILEDB_AR_ERR;
+  }
+
+  // Sanity check
+  assert(fragments_.size() == 1);
+
+  // Sync fragment
+  if(fragments_[0]->sync_attribute(attribute) != TILEDB_FG_OK) {
+    tiledb_ar_errmsg = tiledb_fg_errmsg;
+    return TILEDB_AR_ERR;
+  } else {
+    return TILEDB_AR_OK;
+  }
 }
 
 int Array::write(const void** buffers, const size_t* buffer_sizes) {

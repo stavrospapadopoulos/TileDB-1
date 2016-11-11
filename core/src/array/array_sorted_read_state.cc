@@ -49,7 +49,7 @@
 #  define PRINT_ERROR(x) do { } while(0) 
 #endif
 
-#ifdef OPENMP
+#if defined HAVE_OPENMP && defined USE_PARALLEL_SORT
   #include <parallel/algorithm>
   #define SORT(first, last, comp) __gnu_parallel::sort((first), (last), (comp))
 #else
@@ -268,7 +268,8 @@ int ArraySortedReadState::read(void** buffers, size_t* buffer_sizes) {
   
   // Resume the copy request handling
   if(resume_copy_) {
-    block_copy(copy_id_); 
+    block_copy(1); 
+    block_copy(0); 
     release_aio(copy_id_);
     release_overflow();
   }
@@ -483,7 +484,9 @@ void ArraySortedReadState::advance_cell_slab_col(int aid) {
   current_coords[d] += cell_slab_num;
   int64_t dim_overflow;
   for(int i=0; i<dim_num_-1; ++i) {
-    dim_overflow = current_coords[i] / (tile_slab[2*i+1]-tile_slab[2*i]+1);
+    dim_overflow = 
+        (current_coords[i] - tile_slab[2*i]) / 
+        (tile_slab[2*i+1]-tile_slab[2*i]+1);
     current_coords[i+1] += dim_overflow;
     current_coords[i] -= dim_overflow * (tile_slab[2*i+1]-tile_slab[2*i]+1);
   }
@@ -511,7 +514,9 @@ void ArraySortedReadState::advance_cell_slab_row(int aid) {
   current_coords[d] += cell_slab_num;
   int64_t dim_overflow;
   for(int i=d; i>0; --i) {
-    dim_overflow = current_coords[i] / (tile_slab[2*i+1]-tile_slab[2*i]+1);
+    dim_overflow = 
+        (current_coords[i] - tile_slab[2*i]) / 
+        (tile_slab[2*i+1]-tile_slab[2*i]+1);
     current_coords[i-1] += dim_overflow;
     current_coords[i] -= dim_overflow * (tile_slab[2*i+1]-tile_slab[2*i]+1);
   }
@@ -603,7 +608,7 @@ void *ArraySortedReadState::aio_done(void* data) {
     // Manage the mutexes and conditions
     asrs->release_aio(id);
   }
- 
+
   return NULL;
 }
 
@@ -1104,7 +1109,7 @@ void *ArraySortedReadState::copy_handler(void* context) {
       asrs->handle_copy_requests_dense<double>();
     else
       assert(0);
-  } else {                                  // SPARSE
+  } else {                                       // SPARSE
     if(coords_type == TILEDB_INT32)
       asrs->handle_copy_requests_sparse<int>();
     else if(coords_type == TILEDB_INT64)
@@ -1561,7 +1566,8 @@ void ArraySortedReadState::handle_copy_requests_dense() {
     if(overflow()) {
       block_overflow();
       block_aio(copy_id_);
-      release_copy(copy_id_); 
+      release_copy(0); 
+      release_copy(1); 
       wait_overflow();
       continue;
     }
@@ -1588,9 +1594,6 @@ void ArraySortedReadState::handle_copy_requests_sparse() {
 
     // Sort the cell positions
     if(copy_tile_slab_done()) {
-
-std::cout << "resetting...\n";
-
       reset_tile_slab_state<T>();
       sort_cell_pos<T>();
     }
@@ -2827,6 +2830,10 @@ int ArraySortedReadState::wait_copy(int id) {
 }
 
 int ArraySortedReadState::wait_overflow() {
+  // Lock overflow mutex
+  if(lock_overflow_mtx() != TILEDB_ASRS_OK)
+    return TILEDB_ASRS_ERR; 
+
   // Wait to be signaled
   while(overflow()) {
     if(pthread_cond_wait(&overflow_cond_, &overflow_mtx_)) {
@@ -2836,6 +2843,10 @@ int ArraySortedReadState::wait_overflow() {
       return TILEDB_ASRS_ERR;
     }
   }
+
+  // Unlock overflow mutex
+  if(unlock_overflow_mtx() != TILEDB_ASRS_OK)
+    return TILEDB_ASRS_ERR; 
 
   // Success
   return TILEDB_ASRS_OK;

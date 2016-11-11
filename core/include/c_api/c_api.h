@@ -34,7 +34,9 @@
 #define __C_API_H__
 
 #include "constants.h"
-#include <mpi.h>
+#ifdef HAVE_MPI
+  #include <mpi.h>
+#endif
 #include <stdint.h>
 #include <stddef.h>
 #include <string>
@@ -91,8 +93,10 @@ typedef struct TileDB_Config {
    * default home directory will be used, which is ~/.tiledb/. 
    */
   const char* home_;
+#ifdef HAVE_MPI
   /** The MPI communicator. Use NULL if no MPI is used. */
   MPI_Comm* mpi_comm_; 
+#endif
   /** 
    * The method for reading data from a file. 
    * It can be one of the following: 
@@ -563,6 +567,28 @@ TILEDB_EXPORT int tiledb_array_consolidate(
  */
 TILEDB_EXPORT int tiledb_array_finalize(
     TileDB_Array* tiledb_array);
+
+/** 
+ * Syncs all currently written files in the input array. 
+ *
+ * @param tiledb_array The array to be synced.
+ * @return TILEDB_OK on success, and TILEDB_ERR on error.
+ */
+TILEDB_EXPORT int tiledb_array_sync(
+    TileDB_Array* tiledb_array);
+
+/** 
+ * Syncs the currently written files associated with the input attribute
+ * in the input array. 
+ *
+ * @param tiledb_array The array to be synced.
+ * @param attribute The name of the attribute to be synced.
+ * @return TILEDB_OK on success, and TILEDB_ERR on error.
+ */
+TILEDB_EXPORT int tiledb_array_sync_attribute(
+    TileDB_Array* tiledb_array,
+    const char* attribute);
+
 
 /** A TileDB array iterator. */
 typedef struct TileDB_ArrayIterator TileDB_ArrayIterator;

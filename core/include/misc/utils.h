@@ -33,13 +33,15 @@
 #ifndef __UTILS_H__
 #define __UTILS_H__
 
-#include <mpi.h>
+#ifdef HAVE_MPI
+  #include <mpi.h>
+#endif
 #include <pthread.h>
 #include <string>
 #include <vector>
 
 
-#ifdef OPENMP
+#ifdef HAVE_OPENMP
   #include <omp.h>
 #endif
 
@@ -351,6 +353,21 @@ bool intersect(const std::vector<T>& v1, const std::vector<T>& v2);
  */
 bool is_array(const std::string& dir);
 
+/**
+ * Checks if one range is fully contained in another.
+ *
+ * @template The domain type
+ * @param range_A The first range.
+ * @param range_B The second range.
+ * @param dim_num The number of dimensions.
+ * @return True if range_A is fully contained in range_B. 
+ */
+template<class T>
+bool is_contained(
+    const T* range_A, 
+    const T* range_B, 
+    int dim_num);
+
 /** 
  * Checks if the input is an existing directory. 
  *
@@ -406,6 +423,7 @@ bool is_unary_subarray(const T* subarray, int dim_num);
  */
 bool is_workspace(const std::string& dir);
 
+#ifdef HAVE_MPI
 /**
  * Reads data from a file into a buffer using MPI-IO.
  *
@@ -423,6 +441,17 @@ int mpi_io_read_from_file(
     void* buffer,
     size_t length);
 
+/**
+ * Syncs a file or directory using MPI-IO.
+ *
+ * @param mpi_comm The MPI communicator.
+ * @param filename The name of the file.
+ * @return TILEDB_UT_OK on success and TILEDB_UT_ERR on error.
+ */
+int mpi_io_sync(
+    const MPI_Comm* mpi_comm,
+    const char* filaname);
+
 /** 
  * Writes the input buffer to a file using MPI-IO.
  * 
@@ -437,8 +466,9 @@ int mpi_io_write_to_file(
     const char* filename,
     const void* buffer, 
     size_t buffer_size);
+#endif
 
-#ifdef OPENMP
+#ifdef HAVE_OPENMP
 /**
  * Destroys an OpenMP mutex.
  *
@@ -571,6 +601,14 @@ std::string real_dir(const std::string& dir);
  * @return *true* if *value* starts with the *prefix*, and *false* otherwise. 
  */
 bool starts_with(const std::string& value, const std::string& prefix);
+
+/** 
+ * Syncs a file or directory.
+ * 
+ * @param filename The name of the file.
+ * @return TILEDB_UT_OK on success, and TILEDB_UT_ERR on error.
+ */
+int sync(const char* filename);
 
 /** 
  * Writes the input buffer to a file.

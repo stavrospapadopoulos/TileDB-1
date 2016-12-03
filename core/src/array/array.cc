@@ -1199,7 +1199,7 @@ std::string Array::new_fragment_name() const {
 
   int n = sprintf(
               fragment_name, 
-              "%s/.__%llu_%llu", 
+              "%s/.__%lu_%lu",
               array_schema_->array_name().c_str(), 
               tid, 
               ms);

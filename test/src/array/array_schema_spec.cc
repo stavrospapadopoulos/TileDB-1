@@ -21,7 +21,7 @@
  */
 
 /**
- * Tests to check array schema are serialized/deserialized correctly
+ * Tests to check array schema are serialized/de-serialized correctly
  * to/from the array storage
  */
 
@@ -29,7 +29,7 @@
 #include <unistd.h>
 #include "c_api.h"
 
-class ArraySchemaTest: public testing::Test {
+class ArraySchemaTestFixture: public testing::Test {
 
 public:
   const std::string WORKSPACE = ".__workspace/";
@@ -70,7 +70,7 @@ public:
   }
 };
 
-int ArraySchemaTest::create_dense_array() {
+int ArraySchemaTestFixture::create_dense_array() {
   const char* attributes[] = { "ATTR_INT32" };
   const char* dimensions[] = { "X", "Y" };
   int64_t domain[] = { 0, 99, 0, 99 };
@@ -123,7 +123,7 @@ int ArraySchemaTest::create_dense_array() {
 /***************************/
 /********** TESTS **********/
 /***************************/
-TEST_F(ArraySchemaTest, DenseSchemaTest) {
+TEST_F(ArraySchemaTestFixture, test_dense_single_integer_cell) {
 
   if (create_dense_array() != TILEDB_OK) {
     EXPECT_EQ(0, 1);

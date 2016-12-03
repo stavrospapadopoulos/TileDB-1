@@ -1,0 +1,32 @@
+TileDB Testing Framework
+
+We use the Google Test C++ framework for unit testing TileDB.
+The framework provide testing fixtures which are a great way
+to minimize duplicate code across multiple unit tests regularly
+observed in various software projects. Please refer to code
+in 'src' directory for further details.
+
+Prerequisites
+You must have Google Test dynamic shared objects installed
+for TileDB tests to work. If you do not have it installed,
+please clone the source code from their Github repo and
+compile with dynamic library turned on:
+  $ cmake -DBUILD_SHARED_LIBS=ON .
+  $ make
+
+Make sure both libgtest.so and libgtest_main.so are in the
+link path. If not, add it to the LD_LIBRARY_PATH
+environment variable. Also, ensure that the Google Test
+path specified in the INCLUDE_PATHS in the parent TileDB
+Makefile matches with the dynamic shared library versions
+specified in the link path.
+
+To compile with TileDB with tests use:
+$ make test
+
+Troubleshooting
+If you see undefined reference errors while linking with
+Google Test shared objects, please check the versions of
+Google Test paths declared in INCLUDE_PATHS and link path.
+
+

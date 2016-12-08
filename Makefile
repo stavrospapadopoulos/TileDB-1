@@ -63,6 +63,9 @@ endif
 # --- Compilers --- #
 CXX = g++   
 
+# --- GTest Filters --- #
+GTEST_FILTER='*'
+
 # --- Directories --- #
 CORE_INCLUDE_DIR = core/include
 CORE_INCLUDE_SUBDIRS = $(wildcard core/include/*)
@@ -181,7 +184,7 @@ doc: doxyfile.inc
 
 test: libtiledb $(TEST_BIN_DIR)/tiledb_test
 	@echo "Running TileDB tests"
-	@$(TEST_BIN_DIR)/tiledb_test
+	@$(TEST_BIN_DIR)/tiledb_test --gtest_filter=$(GTEST_FILTER)
 
 clean: clean_core clean_libtiledb \
        clean_test clean_doc clean_examples 

@@ -88,7 +88,7 @@ public:
         const int, const int);
 
   /**
-   * Create the test 100x100 dense array with tile sizes = 10x10
+   * Create the test dense array with given tile extents
    */
   int create_dense_array_2D(
       const long dim0_tile_extent,
@@ -127,6 +127,11 @@ public:
     const int64_t chunkDim1,
 	const int write_mode);
 
+  /**
+   * Update random locations in the dense array
+   * These locations are recorded and later
+   * used to validate reads
+   */
   int update_dense_array_2D(
       const int dim0,
       const int dim1,
@@ -176,14 +181,7 @@ public:
    * Code here will be called immediately after each test
    * (right before the destructor).
    */
-  virtual void TearDown() {
-    // delete currently tested array
-    if (arrayName.empty()) return;
-
-    tiledb_delete(
-        (const TileDB_CTX*)this->tiledb_ctx,
-        this->arrayName.c_str());
-  }
+  virtual void TearDown();
 };
 
 DenseArrayTestFixture::DenseArrayTestFixture() {
@@ -202,9 +200,18 @@ DenseArrayTestFixture::~DenseArrayTestFixture() {
   // Remove the temporary workspace
   std::string command = "rm -rf ";
   command.append(WORKSPACE);
-  int rc = system(
-               command.c_str());
+  int rc = system(command.c_str());
   assert(rc == 0);
+}
+
+void DenseArrayTestFixture::TearDown() {
+  // delete currently tested array
+  if (arrayName.empty()) return;
+
+  tiledb_delete(
+      (const TileDB_CTX*)this->tiledb_ctx,
+      this->arrayName.c_str());
+  arrayName.clear();
 }
 
 void DenseArrayTestFixture::setArrayName(const char *name) {

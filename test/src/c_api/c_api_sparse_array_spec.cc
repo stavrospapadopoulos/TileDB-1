@@ -47,12 +47,9 @@ public:
   // Array name is initialized with the workspace folder
   std::string arrayName;
 
-  int **generate_2Dbuffer(
-            const int, const int);
-
-  int *generate_1Dbuffer(
-           const int, const int);
-
+  /**
+   * Create the test dense array with given tile extents
+   */
   int create_sparse_array_2D(
           const long dim0_tile_extent,
           const long dim1_tile_extent,
@@ -65,26 +62,22 @@ public:
           int tile_order,
           const bool enable_compression);
 
+  /**
+   * Load the array in a sorted row-major manner using
+   * a buffer which is ordered in the global cell order.
+   * The buffer is initialized cell values as
+   * row_id*DIM1+col_id values. Tile extents or chunk
+   * sizes are defined in the create_sparse_array_2D
+   */
   int write_sparse_array_unsorted_2D(
           const int64_t dim0,
           const int64_t dim1);
 
-  int write_sparse_array_sorted_2D(
-          const int64_t dim0,
-          const int64_t dim1,
-          const int64_t chunkDim0,
-          const int64_t chunkDim1);
-
-  int update_sparse_array_2D(
-          const int dim0,
-          const int dim1,
-          int length,
-          int srand_key,
-          int *buffer_a1,
-          int64_t *buffer_coords,
-          const void* buffers[],
-          size_t buffer_sizes[2]);
-
+  /**
+   * Read cell values of a sparse array for a given
+   * range and test whether it matches the value
+   * row_id*DIM1+col_id
+   */
   int * read_sparse_array_2D(
             const int64_t dim0_lo,
             const int64_t dim0_hi,
@@ -92,39 +85,74 @@ public:
             const int64_t dim1_hi,
             const int read_mode);
 
-  SparseArrayTestFixture() {
-    // Initialize context with the default configuration parameters
-    tiledb_ctx_init(&tiledb_ctx, NULL);
-    if (tiledb_workspace_create(
-        tiledb_ctx,
-        WORKSPACE.c_str()) != TILEDB_OK) {
-      exit(EXIT_FAILURE);
-    }
-  }
+  /**
+   * Default constructor used to create a temporary
+   * TileDB workspace in the current working directory
+   * before all tests are called. User must have write
+   * permissions to this directory
+   */
+  SparseArrayTestFixture();
 
-  ~SparseArrayTestFixture() {
-    // Finalize TileDB context
-    tiledb_ctx_finalize(tiledb_ctx);
+  /**
+   * Default destructor removes the temporary
+   * TileDB workspace and destroys the TileDB
+   * context
+   */
+  ~SparseArrayTestFixture();
 
-    // Remove the temporary workspace
-    std::string command = "rm -rf ";
-    command.append(WORKSPACE);
-    int rc = system(command.c_str());
-    ASSERT_EQ(rc, 0);
-  }
-
+  /**
+   * Code here will be called immediately after the constructor (right
+   * before each test).
+   */
   virtual void SetUp() {
     // do Nothing
   }
 
-  virtual void TearDown() {
-    tiledb_delete(tiledb_ctx, arrayName.c_str());
-    arrayName.clear();
-  }
+  /**
+   * Code here will be called immediately after each test
+   * (right before the destructor).
+   */
+  virtual void TearDown();
 
+  /**
+   * Sets the object member array name
+   * For now each test creates its own
+   * array. Later, we can share this
+   * across multiple tests
+   */
   void setArrayName(const char *name);
 
 };  // end of SparseArrayTestFixture
+
+SparseArrayTestFixture::SparseArrayTestFixture() {
+  // Initialize context with the default configuration parameters
+  tiledb_ctx_init(&tiledb_ctx, NULL);
+  if (tiledb_workspace_create(tiledb_ctx, WORKSPACE.c_str())
+      != TILEDB_OK) {
+    exit(EXIT_FAILURE);
+  }
+}
+
+SparseArrayTestFixture::~SparseArrayTestFixture() {
+  // Finalize TileDB context
+  tiledb_ctx_finalize(tiledb_ctx);
+
+  // Remove the temporary workspace
+  std::string command = "rm -rf ";
+  command.append(WORKSPACE);
+  int rc = system(command.c_str());
+  assert(rc == 0);
+}
+
+void SparseArrayTestFixture::TearDown() {
+  // delete currently tested array
+  if (arrayName.empty()) return;
+
+  tiledb_delete(
+      tiledb_ctx,
+      arrayName.c_str());
+  arrayName.clear();
+}
 
 int SparseArrayTestFixture::create_sparse_array_2D(
   const long dim0_tile_extent,
@@ -181,19 +209,6 @@ int SparseArrayTestFixture::create_sparse_array_2D(
   return ret;
 } // end of create_sparse_array_2D
 
-int **SparseArrayTestFixture::generate_2Dbuffer(
-  const int dim0,
-  const int dim1) {
-  int **buffer = new int * [dim0];
-  for (int i = 0; i < dim0; ++i) {
-    buffer[i] = new int [dim1];
-    for (int j = 0; j < dim1; ++j) {
-      buffer[i][j] = i * dim1 + j;
-    }
-  }
-  return buffer;
-}
-
 void SparseArrayTestFixture::setArrayName(const char *name) {
   this->arrayName.append(WORKSPACE);
   this->arrayName.append(name);
@@ -204,6 +219,8 @@ int SparseArrayTestFixture::write_sparse_array_unsorted_2D(
   const int64_t dim1) {
 
   int ret = 0;
+
+  // Generate the data and coordinates for sparse write
   int64_t size = dim0*dim1;
   int * buffer_attr = new int [size];
   int64_t * buffer_coords = new int64_t [2*size];
@@ -304,10 +321,10 @@ int * SparseArrayTestFixture::read_sparse_array_2D(
  * width and height of the subregions
  */
 TEST_F(SparseArrayTestFixture, test_random_sorted_reads) {
-  int64_t dim0 = 10;
-  int64_t dim1 = 10;
-  int64_t chunkDim0 = 5;
-  int64_t chunkDim1 = 5;
+  int64_t dim0 = 5000;
+  int64_t dim1 = 1000;
+  int64_t chunkDim0 = 100;
+  int64_t chunkDim1 = 100;
   int64_t dim0_lo = 0;
   int64_t dim0_hi = dim0-1;
   int64_t dim1_lo = 0;
@@ -317,7 +334,7 @@ TEST_F(SparseArrayTestFixture, test_random_sorted_reads) {
   int tile_order = TILEDB_ROW_MAJOR;
   bool enable_compression = false;
 
-  setArrayName("sparse_test_10x10_5x5");
+  setArrayName("sparse_test_5000x1000_100x100");
 
   // Create a dense integer array
   create_sparse_array_2D(
@@ -346,7 +363,7 @@ TEST_F(SparseArrayTestFixture, test_random_sorted_reads) {
   int64_t d1_hi = 0;
   int64_t height = 0, width = 0;
 
-  for (int iter = 0; iter < 10; ++iter) {
+  for (int iter = 0; iter < 20; ++iter) {
     height = rand() % (dim0 - d0_lo);
     width = rand() % (dim1 - d1_lo);
     d0_hi = d0_lo + height;
@@ -354,15 +371,15 @@ TEST_F(SparseArrayTestFixture, test_random_sorted_reads) {
     int index = 0;
 
     int *buffer = read_sparse_array_2D(
-                    d0_lo,
-                    d0_hi,
-                    d1_lo,
-                    d1_hi,
-                    TILEDB_ARRAY_READ_SORTED_ROW);
+                      d0_lo,
+                      d0_hi,
+                      d1_lo,
+                      d1_hi,
+                      TILEDB_ARRAY_READ_SORTED_ROW);
 
     if (!buffer) {
       std::cerr << "ERROR: NULL buffer returned. "
-          << "Check any data is written to "
+          << "Check TileDB array path "
           << arrayName << "\n";
       FAIL();
     }
@@ -371,7 +388,7 @@ TEST_F(SparseArrayTestFixture, test_random_sorted_reads) {
       for (int j = d1_lo; j <= d1_hi; ++j) {
         EXPECT_EQ(buffer[index], i*dim1+j);
         if (buffer[index] !=  (i*dim1+j)) {
-          std::cout << "mismatch: " << i
+          std::cerr << "mismatch: " << i
               << "," << j << "=" << buffer[index] << "!="
               << ((i*dim1+j)) << "\n";
           return;
@@ -381,4 +398,6 @@ TEST_F(SparseArrayTestFixture, test_random_sorted_reads) {
     }
   } // end of random for-loop
 } // end of test_random_sorted_reads
+
+
 

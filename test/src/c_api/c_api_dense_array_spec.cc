@@ -127,6 +127,8 @@ public:
     const int64_t chunkDim1,
 	const int write_mode);
 
+  int write_dense_array_sorted_range_2D();
+
   /**
    * Update random locations in the dense array
    * These locations are recorded and later
@@ -390,6 +392,42 @@ int DenseArrayTestFixture::write_dense_array_sorted_2D(
   delete(buffer);
   return ret;
 } // end of write_dense_array_sorted_2D
+
+int DenseArrayTestFixture::write_dense_array_sorted_range_2D(
+  int64_t d0_lo,
+  int64_t d0_hi,
+  int64_t d1_lo,
+  int64_t d1_hi,
+  int* buffer) {
+
+  int ret = 0;
+  const char *attributes[] = { "a1" };
+
+  int64_t subarray[] = { d0_lo, d0_hi, d1_lo, d1_hi };
+
+  /* Initialize the array in WRITE mode. */
+  TileDB_Array* tiledb_array;
+  ret = tiledb_array_init(
+      tiledb_ctx,
+      &tiledb_array,
+      arrayName.c_str(),
+      TILEDB_ARRAY_WRITE_SORTED_ROW,
+      subarray,
+      attributes,
+      1);
+  assert(ret == TILEDB_OK);
+
+  const void * buffers[] = { buffer };
+  size_t buffer_sizes[] = { (d0_hi-d0_lo+1)*(d1_hi-d1_lo+1)*sizeof(int) };
+  ret = tiledb_array_write(tiledb_array, buffers, buffer_sizes);
+  assert(ret == TILEDB_OK);
+
+  /* Finalize the array. */
+  ret = tiledb_array_finalize(tiledb_array);
+  assert(ret == TILEDB_OK);
+
+  return ret;
+}
 
 int DenseArrayTestFixture::update_dense_array_2D(
   const int dim0,
@@ -795,3 +833,39 @@ TEST_F(DenseArrayTestFixture, test_random_sorted_reads) {
     }
   }
 } // end of test_random_sorted_reads
+
+
+/**
+ * Test is to randomly write regions of the array and
+ * read them back to validate the writes
+ * Test runs through 100 iterations to choose random
+ * width and height of the regions
+ */
+TEST_F(DenseArrayTestFixture, test_random_sorted_writes) {
+  int64_t dim0 = 5000;
+  int64_t dim1 = 10000;
+  int64_t chunkDim0 = 100;
+  int64_t chunkDim1 = 100;
+  int64_t dim0_lo = 0;
+  int64_t dim0_hi = dim0-1;
+  int64_t dim1_lo = 0;
+  int64_t dim1_hi = dim1-1;
+  int capacity = 0; // 0 means use default capacity
+  int cell_order = TILEDB_ROW_MAJOR;
+  int tile_order = TILEDB_ROW_MAJOR;
+
+  setArrayName("dense_test_5000x10000_100x100");
+
+  // Create a dense integer array
+  create_dense_array_2D(
+      chunkDim0,
+      chunkDim1,
+      dim0_lo,
+      dim0_hi,
+      dim1_lo,
+      dim1_hi,
+      capacity,
+      false,
+      cell_order,
+      tile_order);
+}

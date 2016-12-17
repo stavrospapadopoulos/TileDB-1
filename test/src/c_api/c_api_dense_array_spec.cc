@@ -121,11 +121,17 @@ public:
    * sizes are defined in the create_dense_array_2D
    */
   int write_dense_array_sorted_2D(
-    const int64_t dim0,
-    const int64_t dim1,
-    const int64_t chunkDim0,
-    const int64_t chunkDim1,
-	const int write_mode);
+      const int64_t dim0,
+      const int64_t dim1,
+      const int64_t chunkDim0,
+      const int64_t chunkDim1,
+      const int write_mode);
+
+  int write_dense_array_sorted_range_2D(
+      int64_t *subarray,
+      int write_mode,
+      size_t buffer_sizes[],
+      int* buffer);
 
   /**
    * Update random locations in the dense array
@@ -148,34 +154,32 @@ public:
    * row_id*DIM1+col_id
    */
   int * read_dense_array(
-      const int64_t dim0_lo,
-      const int64_t dim0_hi,
-      const int64_t dim1_lo,
-      const int64_t dim1_hi,
-      const int read_mode);
+        const int64_t dim0_lo,
+        const int64_t dim0_hi,
+        const int64_t dim1_lo,
+        const int64_t dim1_hi,
+        const int read_mode);
 
   /**
    * Not a member-function. A global
    * stand-alone checker to compare two buffers
    */
   static bool check_buffer(
-    const int *before,
-    const int *after,
-    const int *buffer_a1,
-    const int64_t *buffer_coords,
-    const int64_t dim0,
-    const int64_t dim1,
-    const int64_t chunkDim0,
-    const int64_t chunkDim1,
-    const int length);
+              const int *before,
+              const int *after,
+              const int *buffer_a1,
+              const int64_t *buffer_coords,
+              const int64_t dim0,
+              const int64_t dim1,
+              const int64_t chunkDim0,
+              const int64_t chunkDim1,
+              const int length);
 
   /**
    * Code here will be called immediately after the constructor (right
    * before each test).
    */
-  virtual void SetUp() {
-    // do nothing
-  }
+  virtual void SetUp();
 
   /**
    * Code here will be called immediately after each test
@@ -202,6 +206,11 @@ DenseArrayTestFixture::~DenseArrayTestFixture() {
   command.append(WORKSPACE);
   int rc = system(command.c_str());
   assert(rc == 0);
+}
+
+void DenseArrayTestFixture::SetUp() {
+  // Reset the random number generator
+  srand(0);
 }
 
 void DenseArrayTestFixture::TearDown() {
@@ -390,6 +399,38 @@ int DenseArrayTestFixture::write_dense_array_sorted_2D(
   delete(buffer);
   return ret;
 } // end of write_dense_array_sorted_2D
+
+int DenseArrayTestFixture::write_dense_array_sorted_range_2D(
+  int64_t *subarray,
+  int write_mode,
+  size_t buffer_sizes[],
+  int* buffer) {
+
+  int ret = 0;
+  const char *attributes[] = { "ATTR_INT32" };
+
+  /* Initialize the array in WRITE mode. */
+  TileDB_Array* tiledb_array;
+  ret = tiledb_array_init(
+      tiledb_ctx,
+      &tiledb_array,
+      arrayName.c_str(),
+      write_mode,
+      subarray,
+      attributes,
+      1);
+  assert(ret == TILEDB_OK);
+
+  const void * buffers[] = { buffer };
+  ret = tiledb_array_write(tiledb_array, buffers, buffer_sizes);
+  assert(ret == TILEDB_OK);
+
+  /* Finalize the array. */
+  ret = tiledb_array_finalize(tiledb_array);
+  assert(ret == TILEDB_OK);
+
+  return ret;
+}
 
 int DenseArrayTestFixture::update_dense_array_2D(
   const int dim0,
@@ -795,3 +836,83 @@ TEST_F(DenseArrayTestFixture, test_random_sorted_reads) {
     }
   }
 } // end of test_random_sorted_reads
+
+
+/**
+ * Test is to randomly write regions of the 2D array and
+ * read them back to validate the writes
+ * Test runs through 100 iterations to choose random
+ * width and height of the regions
+ */
+TEST_F(DenseArrayTestFixture, test_random_sorted_writes) {
+  int64_t dim[2] = { 100, 100 };
+  int64_t tile_extents[2] = { 10, 10 };
+  int64_t dim_ranges[2][2] =
+    {
+        { 0, dim[0]-1 },
+        { 0, dim[1]-1 }
+    };
+  int capacity = 0; // 0 means use default capacity
+  int cell_order = TILEDB_ROW_MAJOR;
+  int tile_order = TILEDB_ROW_MAJOR;
+
+  setArrayName("dense_test_5000x10000_100x100");
+
+  // Create a dense integer array
+  create_dense_array_2D(
+      tile_extents[0],
+      tile_extents[1],
+      dim_ranges[0][0],
+      dim_ranges[0][1],
+      dim_ranges[1][0],
+      dim_ranges[1][1],
+      capacity,
+      false,
+      cell_order,
+      tile_order);
+
+  int iterations = 10;
+  int64_t d0[2], d1[2];
+
+  for (int i = 0; i < iterations; ++i) {
+    std::cout << "iteration: " << i << "\n";
+    d0[0] = rand() % dim[0];
+    d1[0] = rand() % dim[1];
+    d0[1] = d0[0] + rand() % (dim[0] - d0[0]);
+    d1[1] = d1[0] + rand() % (dim[1] - d1[0]);
+
+    int64_t subarray[] = { d0[0], d0[1], d1[0], d1[1] };
+    std::cout << "subarray: " << subarray[0] << ","
+        << subarray[1] << "," << subarray[2] << ","
+        << subarray[3] << "\n";
+    size_t query_size[2] = { (size_t)(d0[1] - d0[0] + 1),
+                              (size_t)(d1[1] - d1[0] + 1) };
+    size_t buffer_size = query_size[0] * query_size[1];
+
+    int *buffer = new int [buffer_size];
+    size_t index = 0;
+
+    for (size_t r = 0; r < query_size[0]; ++r)
+      for (size_t c = 0; c < query_size[1]; ++c)
+        buffer[index++] = - (rand() % 999999);
+
+    write_dense_array_sorted_range_2D(
+        subarray,
+        TILEDB_ARRAY_WRITE_SORTED_ROW,
+        query_size,
+        buffer);
+
+    int *out_buffer = read_dense_array(
+                          subarray[0],
+                          subarray[1],
+                          subarray[2],
+                          subarray[3],
+                          TILEDB_ARRAY_READ_SORTED_ROW);
+
+    for (index = 0; index < buffer_size; ++index)
+      EXPECT_EQ(buffer[index], out_buffer[index]);
+
+    delete [] buffer;
+    delete [] out_buffer;
+  }
+}

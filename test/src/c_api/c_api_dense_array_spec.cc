@@ -871,7 +871,7 @@ TEST_F(DenseArrayTestFixture, test_random_sorted_writes) {
       cell_order,
       tile_order);
 
-  int iterations = 2;
+  int iterations = 10;
   int64_t d0[2], d1[2];
 
   for (int i = 0; i < iterations; ++i) {
